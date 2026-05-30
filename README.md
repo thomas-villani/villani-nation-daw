@@ -8,7 +8,7 @@ to building full tracks later.
 Built from [`fruityloops-for-kids-spec.md`](./fruityloops-for-kids-spec.md)
 (design codename "Loopa").
 
-## What works today (phases 1–4)
+## What works today (phases 1–5)
 
 - **🥁 Drum grid** — tap a 16-step grid to build a beat with procedural
   kick / snare / hat / clap. Mute pads, or drag a `.wav` onto a row to swap in your
@@ -27,6 +27,12 @@ Built from [`fruityloops-for-kids-spec.md`](./fruityloops-for-kids-spec.md)
   reverb, and delay.
 - **🎶 Jam mode** — multiple tracks loop together, locked tight to the beat. Set
   tempo, swing, key, scale, and master volume from the top bar.
+- **🎬 Song mode** — flip from Jam to Song and arrange a whole track on a timeline
+  of section blocks (Intro / Verse / Build / Drop / Bridge / Breakdown / Outro).
+  Each section picks which clip every instrument plays (or goes silent) and carries
+  **automation moves** — a build sweeps the filters open and swells the volume, an
+  outro fades out — that ramp during the section, then return. Hit **✨ Auto-arrange**
+  for an instant full song from your clips, then tweak it.
 - **✨ No wrong notes** — change the key or scale and your whole song re-pitches
   *in-key* instantly (happy ↔ moody with one control).
 - **💾 Never lose a jam** — every edit auto-saves to your browser and reopens next
@@ -34,7 +40,7 @@ Built from [`fruityloops-for-kids-spec.md`](./fruityloops-for-kids-spec.md)
   share or back up.
 
 See [`implementation.md`](./implementation.md) for the full progress tracker and
-what's coming (song arrangement, mixer + export, generators, visualizer).
+what's coming (mixer + WAV/MP3 export, generators, audio visualizer).
 
 ## Quick start
 
@@ -81,7 +87,7 @@ src/
   audio/       # Tone.js engine, instrument voices, drums, scheduler, clock
   store/       # Zustand project store
   hooks/       # store → engine bridge, playhead subscription
-  components/  # transport bar, drum grid, piano roll, instrument panel
+  components/  # transport bar, drum grid, piano roll, instrument panel, song view
 ```
 
 ---

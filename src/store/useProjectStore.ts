@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type {
+  AutomationLane,
   Clip,
   EffectType,
   Instrument,
@@ -9,16 +10,23 @@ import type {
   Note,
   Project,
   ScaleName,
+  Section,
+  SectionType,
   SynthConfig,
 } from '../model/types';
 import {
   makeDefaultProject,
   makeDrumInstrument,
   makeClip,
+  makeSection,
   makeSynthInstrument,
 } from '../model/defaults';
+import { id } from '../model/ids';
 import { TRACK_COLORS } from '../lib/constants';
+import { AUTO_ARRANGE_SHAPE, SECTION_TEMPLATES } from '../lib/sections';
 import { loadFromLocal } from '../lib/persistence';
+
+export type AppMode = 'jam' | 'song';
 
 // THE source of truth for project DATA. Holds only serializable state (no Tone
 // objects, never imports the engine). The engine is reconciled from here by the
@@ -29,7 +37,9 @@ interface TransportState {
 }
 
 interface UiState {
+  mode: AppMode; // 'jam' = loop the active clips; 'song' = play the arrangement
   selectedInstrumentId: string | null;
+  selectedSectionId: string | null; // the section open in the song inspector
   // Which clip is "active" (shown in the editor AND looping) per instrument.
   // Sparse: a missing entry falls back to the instrument's first clip, so this
   // never needs eager bookkeeping when clips/instruments are added or loaded.
@@ -66,6 +76,22 @@ export interface ProjectStore {
   updateEffect(id: string, type: EffectType, params: Record<string, number>): void;
   selectInstrument(id: string): void;
 
+  // song view (phase 5 — sections + arrangement + automation)
+  setMode(mode: AppMode): void;
+  selectSection(sectionId: string | null): void;
+  addSection(type: SectionType): string;
+  removeSection(sectionId: string): void;
+  duplicateSection(sectionId: string): string | null;
+  moveSection(sectionId: string, dir: -1 | 1): void;
+  renameSection(sectionId: string, name: string): void;
+  setSectionType(sectionId: string, type: SectionType): void;
+  setSectionLength(sectionId: string, bars: number): void;
+  assignClip(sectionId: string, instrumentId: string, clipId: string | null): void;
+  resetClipAssignment(sectionId: string, instrumentId: string): void;
+  addAutomation(sectionId: string, lane: AutomationLane): void;
+  removeAutomation(sectionId: string, instrumentId: string, param: AutomationLane['param']): void;
+  autoArrange(): void;
+
   // clips (phase 4 — multiple clips per instrument)
   selectClip(instrumentId: string, clipId: string): void;
   addClip(instrumentId: string): string;
@@ -98,7 +124,9 @@ export const useProjectStore = create<ProjectStore>()(
         project: initial,
         transport: { isPlaying: false },
         ui: {
+          mode: 'jam',
           selectedInstrumentId: initial.instruments[0]?.id ?? null,
+          selectedSectionId: initial.arrangement[0] ?? null,
           activeClipByInstrument: {},
           masterVolume: 0.9,
           lastSavedAt: null,
@@ -109,12 +137,14 @@ export const useProjectStore = create<ProjectStore>()(
             const fresh = makeDefaultProject();
             s.project = fresh;
             s.ui.selectedInstrumentId = fresh.instruments[0]?.id ?? null;
+            s.ui.selectedSectionId = null;
             s.ui.activeClipByInstrument = {};
           }),
         replaceProject: (project) =>
           set((s) => {
             s.project = project;
             s.ui.selectedInstrumentId = project.instruments[0]?.id ?? null;
+            s.ui.selectedSectionId = project.arrangement[0] ?? null;
             s.ui.activeClipByInstrument = {};
           }),
         renameProject: (name) =>
@@ -168,12 +198,17 @@ export const useProjectStore = create<ProjectStore>()(
           });
           return inst.id;
         },
-        removeInstrument: (id) =>
+        removeInstrument: (instrumentId) =>
           set((s) => {
-            s.project.instruments = s.project.instruments.filter((i) => i.id !== id);
-            s.project.clips = s.project.clips.filter((c) => c.instrumentId !== id);
-            delete s.ui.activeClipByInstrument[id];
-            if (s.ui.selectedInstrumentId === id) {
+            s.project.instruments = s.project.instruments.filter((i) => i.id !== instrumentId);
+            s.project.clips = s.project.clips.filter((c) => c.instrumentId !== instrumentId);
+            delete s.ui.activeClipByInstrument[instrumentId];
+            // Drop any section references to the removed instrument so the JSON stays tidy.
+            for (const sec of s.project.sections) {
+              delete sec.clipAssignments[instrumentId];
+              sec.automation = sec.automation.filter((a) => a.instrumentId !== instrumentId);
+            }
+            if (s.ui.selectedInstrumentId === instrumentId) {
               s.ui.selectedInstrumentId = s.project.instruments[0]?.id ?? null;
             }
           }),
@@ -203,6 +238,122 @@ export const useProjectStore = create<ProjectStore>()(
           set((s) => {
             s.ui.selectedInstrumentId = id;
           }),
+
+        // --- song view (phase 5) ---
+        setMode: (mode) =>
+          set((s) => {
+            s.ui.mode = mode;
+          }),
+        selectSection: (sectionId) =>
+          set((s) => {
+            s.ui.selectedSectionId = sectionId;
+          }),
+        addSection: (type) => {
+          const section = makeSection(type, useProjectStore.getState().project.instruments);
+          set((s) => {
+            s.project.sections.push(section);
+            s.project.arrangement.push(section.id);
+            s.ui.selectedSectionId = section.id;
+          });
+          return section.id;
+        },
+        removeSection: (sectionId) =>
+          set((s) => {
+            s.project.sections = s.project.sections.filter((x) => x.id !== sectionId);
+            s.project.arrangement = s.project.arrangement.filter((aid) => aid !== sectionId);
+            if (s.ui.selectedSectionId === sectionId) {
+              s.ui.selectedSectionId = s.project.arrangement[0] ?? null;
+            }
+          }),
+        duplicateSection: (sectionId) => {
+          const src = useProjectStore.getState().project.sections.find((x) => x.id === sectionId);
+          if (!src) return null;
+          const copy: Section = {
+            ...src,
+            id: id(),
+            clipAssignments: { ...src.clipAssignments },
+            automation: src.automation.map((a) => ({ ...a })),
+          };
+          set((s) => {
+            s.project.sections.push(copy);
+            const arr = s.project.arrangement;
+            const i = arr.indexOf(sectionId);
+            arr.splice(i >= 0 ? i + 1 : arr.length, 0, copy.id);
+            s.ui.selectedSectionId = copy.id;
+          });
+          return copy.id;
+        },
+        moveSection: (sectionId, dir) =>
+          set((s) => {
+            const arr = s.project.arrangement;
+            const i = arr.indexOf(sectionId);
+            const j = i + dir;
+            if (i < 0 || j < 0 || j >= arr.length) return;
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+          }),
+        renameSection: (sectionId, name) =>
+          set((s) => {
+            const sec = s.project.sections.find((x) => x.id === sectionId);
+            if (sec) sec.name = name;
+          }),
+        setSectionType: (sectionId, type) =>
+          set((s) => {
+            const sec = s.project.sections.find((x) => x.id === sectionId);
+            if (!sec) return;
+            const tmpl = SECTION_TEMPLATES[type];
+            sec.type = type;
+            // Re-apply the type's default moves + silenced tracks (keeps explicit
+            // clip picks; only touches the template-managed bits).
+            sec.automation = tmpl.automation(s.project.instruments);
+            for (const inst of s.project.instruments) {
+              if (tmpl.silentKinds.includes(inst.kind)) sec.clipAssignments[inst.id] = null;
+              else if (sec.clipAssignments[inst.id] === null) delete sec.clipAssignments[inst.id];
+            }
+          }),
+        setSectionLength: (sectionId, bars) =>
+          set((s) => {
+            const sec = s.project.sections.find((x) => x.id === sectionId);
+            if (sec) sec.lengthBars = Math.min(32, Math.max(1, Math.round(bars)));
+          }),
+        assignClip: (sectionId, instrumentId, clipId) =>
+          set((s) => {
+            const sec = s.project.sections.find((x) => x.id === sectionId);
+            if (sec) sec.clipAssignments[instrumentId] = clipId;
+          }),
+        resetClipAssignment: (sectionId, instrumentId) =>
+          set((s) => {
+            const sec = s.project.sections.find((x) => x.id === sectionId);
+            if (sec) delete sec.clipAssignments[instrumentId];
+          }),
+        addAutomation: (sectionId, lane) =>
+          set((s) => {
+            const sec = s.project.sections.find((x) => x.id === sectionId);
+            if (!sec) return;
+            // One lane per (instrument, param) — a new move replaces the old.
+            sec.automation = sec.automation.filter(
+              (a) => !(a.instrumentId === lane.instrumentId && a.param === lane.param),
+            );
+            sec.automation.push(lane);
+          }),
+        removeAutomation: (sectionId, instrumentId, param) =>
+          set((s) => {
+            const sec = s.project.sections.find((x) => x.id === sectionId);
+            if (sec) {
+              sec.automation = sec.automation.filter(
+                (a) => !(a.instrumentId === instrumentId && a.param === param),
+              );
+            }
+          }),
+        autoArrange: () => {
+          const insts = useProjectStore.getState().project.instruments;
+          const sections = AUTO_ARRANGE_SHAPE.map((t) => makeSection(t, insts));
+          set((s) => {
+            s.project.sections = sections;
+            s.project.arrangement = sections.map((x) => x.id);
+            s.ui.selectedSectionId = sections[0]?.id ?? null;
+            s.ui.mode = 'song';
+          });
+        },
 
         selectClip: (instrumentId, clipId) =>
           set((s) => {
@@ -349,5 +500,12 @@ export function selectActiveClips(p: Project, activeMap: ActiveMap = {}): Clip[]
   return out;
 }
 
-export const selectInstrumentById = (p: Project, id: string | null) =>
-  id ? p.instruments.find((i) => i.id === id) : undefined;
+export const selectInstrumentById = (p: Project, instrumentId: string | null) =>
+  instrumentId ? p.instruments.find((i) => i.id === instrumentId) : undefined;
+
+/** The sections in play order (resolves the arrangement id list to Section objects). */
+export function selectSongSections(p: Project): Section[] {
+  return p.arrangement
+    .map((sid) => p.sections.find((s) => s.id === sid))
+    .filter((s): s is Section => Boolean(s));
+}

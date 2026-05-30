@@ -2,7 +2,7 @@ import * as Tone from 'tone';
 import type { Clip, Instrument, Project } from '../model/types';
 import { midiToFreq } from '../lib/scales';
 import { InstrumentVoice } from './InstrumentVoice';
-import { buildJam, type JamSchedule } from './scheduler';
+import { buildJam, buildSong, type JamSchedule, type SongSchedule } from './scheduler';
 import { transportClock } from './transportClock';
 
 // The single public audio facade (spec §4). React imports ONLY this module for
@@ -13,6 +13,7 @@ class AudioEngine {
   private master = new Tone.Gain(0.9);
   private voices = new Map<string, InstrumentVoice>();
   private jam: JamSchedule | null = null;
+  private song: SongSchedule | null = null;
   private started = false;
 
   constructor() {
@@ -78,9 +79,28 @@ class AudioEngine {
 
   /** (Re)build the looping Parts from the active clips. Safe to call while playing. */
   loadJam(project: Project, activeClips: Clip[]): void {
+    // Leaving song mode: tear down the arrangement and snap any section automation
+    // back to each instrument's home value so the jam plays at the plain mix.
+    this.song?.dispose();
+    this.song = null;
+    for (const inst of project.instruments) this.voices.get(inst.id)?.resetAutomation(inst);
+
     this.jam?.dispose();
     this.jam = buildJam(project, this.voices, activeClips);
     transportClock.setLoopSteps(this.jam.loopSteps);
+  }
+
+  /** (Re)build the whole-song arrangement schedule (spec §4.3). Safe while playing. */
+  scheduleArrangement(project: Project): void {
+    // Leaving jam mode: drop the jam loop. Reset automation first so a stale ramp
+    // from a previous build never lingers before the first section sets its values.
+    this.jam?.dispose();
+    this.jam = null;
+    for (const inst of project.instruments) this.voices.get(inst.id)?.resetAutomation(inst);
+
+    this.song?.dispose();
+    this.song = buildSong(project, this.voices);
+    transportClock.setLoopSteps(this.song.loopSteps);
   }
 
   async play(): Promise<void> {
@@ -117,11 +137,6 @@ class AudioEngine {
   getPosition() {
     const t = Tone.getTransport();
     return { ticks: t.ticks, seconds: t.seconds, position: t.position };
-  }
-
-  // --- seam for phase 5 (Song view) ---
-  scheduleArrangement(_project: Project): void {
-    throw new Error('scheduleArrangement is not implemented until phase 5');
   }
 }
 

@@ -18,7 +18,9 @@ export function TransportBar() {
   const scale = useProjectStore((s) => s.project.key.scale);
   const masterVolume = useProjectStore((s) => s.ui.masterVolume);
   const isPlaying = useProjectStore((s) => s.transport.isPlaying);
+  const mode = useProjectStore((s) => s.ui.mode);
 
+  const setMode = useProjectStore((s) => s.setMode);
   const setBpm = useProjectStore((s) => s.setBpm);
   const setSwing = useProjectStore((s) => s.setSwing);
   const setKeyRoot = useProjectStore((s) => s.setKeyRoot);
@@ -51,6 +53,21 @@ export function TransportBar() {
       >
         {isPlaying ? '■ Stop' : '▶ Play'}
       </button>
+
+      {/* Jam (loop the active clips) vs Song (play the arrangement). */}
+      <div className="flex rounded-xl border-2 border-edge overflow-hidden">
+        {(['jam', 'song'] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`px-3 py-2 text-sm font-bold ${
+              mode === m ? 'bg-hi text-ink' : 'bg-panel2 text-white/60 hover:text-white'
+            }`}
+          >
+            {m === 'jam' ? '🔁 Jam' : '🎬 Song'}
+          </button>
+        ))}
+      </div>
 
       <Control label="Tempo">
         <div className="flex items-center gap-1">

@@ -1,17 +1,31 @@
 import * as Tone from 'tone';
 import type { DrumPad, Instrument, SynthConfig } from '../model/types';
+import type { AutomatableParam } from '../lib/sections';
 import { buildEffectChain, type EffectChain } from './effects';
 import { makeProceduralPad, makeSamplePad, type PadGenerator } from './drums';
 
 // One InstrumentVoice owns all Tone objects for a single Instrument and exposes a
 // uniform trigger surface. Signal flow (spec §4.2):
 //
-//   source -> [voiceFilter (synth only)] -> [effect chain] -> Panner -> Volume -> master
+//   source -> [voiceFilter (synth only)] -> [effect chain] -> Panner -> autoGain -> Volume -> master
 //
 // The voiceFilter gives every engine type one consistent cutoff/resonance control
 // that maps directly to the InstrumentPanel, independent of the synth internals.
+// autoGain is a dedicated 0..1 gain that ONLY section automation writes to (spec
+// §5.7) — kept separate from the channel Volume so a section's swell/fade is a
+// temporary move that returns to the mix, never overwriting the kid's fader.
 
 type SynthNode = Tone.Synth | Tone.PolySynth;
+
+// The minimal automation surface shared by Tone.Signal and Tone.Param, so the
+// scheduler can ramp filter cutoff, gain, and effect-wet uniformly without fighting
+// Tone's generic param types.
+export interface AutomatableSignal {
+  cancelScheduledValues(t: Tone.Unit.Time): unknown;
+  setValueAtTime(v: number, t: Tone.Unit.Time): unknown;
+  linearRampToValueAtTime(v: number, t: Tone.Unit.Time): unknown;
+  exponentialRampToValueAtTime(v: number, t: Tone.Unit.Time): unknown;
+}
 
 interface KitRuntime {
   pads: { gen: PadGenerator; gain: Tone.Gain; sig: string }[];
@@ -25,6 +39,7 @@ const padSig = (pad: DrumPad): string =>
 export class InstrumentVoice {
   readonly id: string;
   private panner: Tone.Panner;
+  private autoGain: Tone.Gain; // section-automation gain (0..1), home = 1
   private volume: Tone.Volume;
   private sourceOut: Tone.ToneAudioNode; // node that feeds the effect chain
 
@@ -36,13 +51,16 @@ export class InstrumentVoice {
   private effectsHash = '';
   private kind: Instrument['kind'];
   private engine: SynthConfig['engine'] | null = null;
+  private baseCutoff = 2000; // last applied synth filter cutoff — the automation "home"
 
   constructor(inst: Instrument, master: Tone.ToneAudioNode) {
     this.id = inst.id;
     this.kind = inst.kind;
     this.panner = new Tone.Panner(inst.pan);
+    this.autoGain = new Tone.Gain(1);
     this.volume = new Tone.Volume(Tone.gainToDb(inst.volume));
-    this.panner.connect(this.volume);
+    this.panner.connect(this.autoGain);
+    this.autoGain.connect(this.volume);
     this.volume.connect(master);
 
     if (inst.kind === 'drumkit') {
@@ -130,6 +148,7 @@ export class InstrumentVoice {
     if (this.engine === 'mono') (this.synth as Tone.Synth).portamento = cfg.glide;
     this.voiceFilter.frequency.rampTo(cfg.filter.cutoff, 0.02);
     this.voiceFilter.Q.rampTo(cfg.filter.resonance, 0.02);
+    this.baseCutoff = cfg.filter.cutoff; // remember the cutoff section automation returns to
   }
 
   private rebuildSynth(engine: SynthConfig['engine']): void {
@@ -191,6 +210,61 @@ export class InstrumentVoice {
     this.kit?.pads[padIndex]?.gen.trigger(time, velocity);
   }
 
+  // --- section automation (phase 5) ---
+  //
+  // The engine ramps these signals at section boundaries (spec §5.4). Returns
+  // undefined when the param doesn't apply (e.g. filter on a drum kit, or an
+  // effect that's currently disabled) so the scheduler simply skips it.
+
+  getAutomationSignal(param: AutomatableParam): AutomatableSignal | undefined {
+    switch (param) {
+      case 'filter.cutoff':
+        return this.voiceFilter?.frequency as AutomatableSignal | undefined;
+      case 'volume':
+        return this.autoGain.gain as unknown as AutomatableSignal;
+      case 'effect.reverb.wet':
+        return this.effectWet('reverb');
+      case 'effect.delay.wet':
+        return this.effectWet('delay');
+      default:
+        return undefined;
+    }
+  }
+
+  /** The "home" value section automation returns this param to between moves. */
+  baseValueFor(param: AutomatableParam, inst: Instrument): number {
+    switch (param) {
+      case 'filter.cutoff':
+        return inst.synth?.filter.cutoff ?? this.baseCutoff;
+      case 'volume':
+        return 1; // autoGain home
+      case 'effect.reverb.wet':
+        return inst.effects.find((e) => e.type === 'reverb')?.params.wet ?? 0;
+      case 'effect.delay.wet':
+        return inst.effects.find((e) => e.type === 'delay')?.params.wet ?? 0;
+      default:
+        return 0;
+    }
+  }
+
+  private effectWet(type: 'reverb' | 'delay'): AutomatableSignal | undefined {
+    const node = this.effectChain.nodes.find((n) => n.type === type)?.node as
+      | { wet?: AutomatableSignal }
+      | undefined;
+    return node?.wet;
+  }
+
+  /** Snap every automatable param back to its home value (called on jam re-entry). */
+  resetAutomation(inst: Instrument): void {
+    const now = Tone.now();
+    this.autoGain.gain.cancelScheduledValues(now);
+    this.autoGain.gain.setValueAtTime(1, now);
+    if (this.voiceFilter && inst.synth) {
+      this.voiceFilter.frequency.cancelScheduledValues(now);
+      this.voiceFilter.frequency.setValueAtTime(inst.synth.filter.cutoff, now);
+    }
+  }
+
   dispose(): void {
     this.synth?.dispose();
     this.voiceFilter?.dispose();
@@ -201,6 +275,7 @@ export class InstrumentVoice {
     this.kit?.output.dispose();
     this.effectChain.dispose();
     this.panner.dispose();
+    this.autoGain.dispose();
     this.volume.dispose();
   }
 }

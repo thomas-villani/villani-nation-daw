@@ -11,14 +11,17 @@ export function useEngineSync(): void {
   useEffect(() => {
     const store = useProjectStore;
 
-    // Debounced jam rebuild: painting cells / dragging sliders shouldn't thrash
-    // Tone.Part reconstruction. The loop reflects edits on its next cycle.
+    // Debounced schedule rebuild. The mode decides which playback graph to build:
+    // jam = loop the active clips; song = walk the arrangement. Painting cells /
+    // dragging sliders shouldn't thrash Tone.Part reconstruction — the loop
+    // reflects edits on its next cycle.
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const rebuildJam = () => {
+    const rebuild = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         const { project, ui } = store.getState();
-        engine.loadJam(project, selectActiveClips(project, ui.activeClipByInstrument));
+        if (ui.mode === 'song') engine.scheduleArrangement(project);
+        else engine.loadJam(project, selectActiveClips(project, ui.activeClipByInstrument));
       }, 80);
     };
 
@@ -28,7 +31,8 @@ export function useEngineSync(): void {
     engine.setSwing(s0.project.swing);
     engine.setMasterVolume(s0.ui.masterVolume);
     engine.syncInstruments(s0.project.instruments);
-    engine.loadJam(s0.project, selectActiveClips(s0.project, s0.ui.activeClipByInstrument));
+    if (s0.ui.mode === 'song') engine.scheduleArrangement(s0.project);
+    else engine.loadJam(s0.project, selectActiveClips(s0.project, s0.ui.activeClipByInstrument));
 
     const unsubs = [
       store.subscribe((st) => st.project.bpm, (bpm) => engine.setTempo(bpm)),
@@ -36,11 +40,19 @@ export function useEngineSync(): void {
       store.subscribe((st) => st.ui.masterVolume, (v) => engine.setMasterVolume(v)),
       // Instrument changes (incl. synth/effect params) -> live reconcile, diffed by id.
       store.subscribe((st) => st.project.instruments, (insts) => engine.syncInstruments(insts)),
-      // Clips, key, or the active-clip selection changed -> rebuild the looping
-      // Parts (debounced). Switching the active clip per instrument re-jams here.
+      // Anything that changes what plays — clips/key/active-clip (jam) OR
+      // mode/sections/arrangement (song) — rebuilds the schedule (debounced).
       store.subscribe(
-        (st) => [st.project.clips, st.project.key, st.ui.activeClipByInstrument] as const,
-        rebuildJam,
+        (st) =>
+          [
+            st.ui.mode,
+            st.project.clips,
+            st.project.key,
+            st.ui.activeClipByInstrument,
+            st.project.sections,
+            st.project.arrangement,
+          ] as const,
+        rebuild,
         { equalityFn: shallow },
       ),
     ];

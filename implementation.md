@@ -20,7 +20,7 @@ browser first. npm (not uv). Windows dev box.
 | 2 | Clip editor + instruments (drum grid, piano roll, synth panel, jam) | ✅ Done |
 | 3 | Project model + persistence (localStorage autosave, JSON import/export) | ✅ Done |
 | 4 | Multiple clips per instrument + chord stamp brush | ✅ Done |
-| 5 | Song view (sections, arrangement timeline, automation, templates) | ⬜ Not started |
+| 5 | Song view (sections, arrangement timeline, automation, templates) | ✅ Done |
 | 6 | Mix & export (mixer panel + meters, WAV/MP3 via `Tone.Offline`) | ⬜ Not started |
 | 7 | Polish (generators / ✨ Surprise, coach overlay, audio visualizer) | ⬜ Not started |
 | 8 | Optional Electron wrap (sample-folder browser, native save, installer) | ⬜ Not started |
@@ -46,7 +46,7 @@ browser first. npm (not uv). Windows dev box.
 
 ### Seams already in place for later phases
 - `Project` is plain JSON → phase 3 persistence = `JSON.stringify`/hydrate.
-- `engine.scheduleArrangement()` stub → phase 5.
+- `engine.scheduleArrangement()` → **implemented in phase 5** (walks the arrangement).
 - Master `Gain` node in the engine → phase 7 analyser tap.
 - Uniform `{ trigger, output, dispose }` voice/pad interface → reused by the
   phase-5 arrangement walker.
@@ -123,10 +123,44 @@ Files: `src/audio/{engine,scheduler,transportClock,drums,InstrumentVoice}.ts`,
 - Verified in Chrome: add 2nd clip pill, switch tracks, Triad stamp adds exactly 3
   in-key notes to the active clip (persisted round-trip), zero console errors.
 
-### ⬜ Phase 5 — Song view
-Section blocks, arrangement timeline, per-section clip assignments, automation
-lanes + ramps, section templates (Build/Drop/Bridge/Outro). Wire
-`engine.scheduleArrangement()`.
+### ✅ Phase 5 — Song view
+- **Two modes.** A Jam/Song toggle in the transport bar (`ui.mode`). Jam loops the
+  active clips (phase 4); **Song** walks the `arrangement` — an ordered list of
+  `Section` ids. The engine bridge picks `loadJam` vs `scheduleArrangement` by mode
+  and re-syncs on any change to clips/key/active-clip (jam) or mode/sections/
+  arrangement (song).
+- **Section templates** (`src/lib/sections.ts`): the seven `SectionType`s each carry
+  a kid preset — label/emoji/color, default bars, which instrument *kinds* it
+  silences, and the automation "moves" it pre-fills. `makeSection(type, instruments)`
+  (in `model/defaults.ts`) builds one with **sparse** clip assignments (a missing
+  entry = "play this track's default clip", an explicit `null` = silent), mirroring
+  the jam's active-clip fallback so adding tracks later needs no section bookkeeping.
+- **`engine.scheduleArrangement`** (`audio/scheduler.ts` → `buildSong`): walks the
+  sections accumulating a bar offset; for each instrument it resolves the section's
+  clip and repeats it to fill the section length, emitting events at absolute song
+  time into one looping `Tone.Part` per instrument (the whole song loops as a unit).
+  Each section's automation is scheduled via `Transport.schedule` at its start: a
+  param with a lane **ramps** (`linear`/`exponential`), a param without one **snaps
+  back to the instrument's home value** — so a build's open filter never bleeds into
+  the next section (spec §5.7).
+- **Automation targets.** `InstrumentVoice` gained a dedicated `autoGain` (0..1,
+  home = 1) inserted `panner → autoGain → volume`, so section volume swells/fades are
+  a temporary move that *returns to the mix* rather than overwriting the kid's fader.
+  `getAutomationSignal(param)` exposes `filter.cutoff` (voice filter), `volume`
+  (autoGain), and `effect.reverb.wet`/`effect.delay.wet` (when the effect is on);
+  `resetAutomation` snaps everything home when leaving song mode.
+- **Song view UI** (`src/components/song/`): `SongView` = a section palette + an
+  **✨ Auto-arrange** button (assembles Intro→Verse→Build→Drop→Bridge→Build→Drop→Outro
+  from existing clips) + a proportional-width timeline with a bar ruler and a song
+  playhead. `SectionInspector` = rename / type / length / reorder / duplicate /
+  delete, plus per-instrument **clip dropdown** (Default / a clip / 🔇 Silent) and
+  editable **automation chips** ("Filter: muffled → open", "Volume: 55% → full").
+- **Zustand pitfall (again):** `SongView` selects the stable `arrangement` +
+  `sections` refs and resolves play order *in render* — an early version selected a
+  freshly-mapped array and hit the infinite-render loop (caught in the browser).
+- Verified in Chrome: Auto-arrange builds the 8-section shape, adding a section +
+  Silent assignment + automation chips all work, **playback in Song mode runs with
+  zero console errors**, and Jam↔Song round-trips cleanly.
 
 ### ⬜ Phase 6 — Mix & export
 Mixer panel (faders/mute/solo/pan + drum sub-mixer + `Tone.Meter` level meters);
@@ -156,3 +190,6 @@ Sample-folder browser, native save, packaged installer.
 - Piano roll rows are all in-key; switching scale/root re-pitches melodies with no
   re-entry.
 - Synth/FX changes are audible live; multiple instruments stay phase-locked.
+- Song mode plays the arrangement end-to-end; per-section clip swaps + automation
+  (filter sweep, fade) ramp during their section and return; ✨ Auto-arrange yields a
+  playable full song; Jam↔Song round-trips cleanly.

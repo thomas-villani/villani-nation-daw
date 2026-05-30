@@ -1,4 +1,5 @@
 import { DEFAULT_PADS, TRACK_COLORS } from '../lib/constants';
+import { SECTION_TEMPLATES } from '../lib/sections';
 import { id } from './ids';
 import type {
   Clip,
@@ -8,6 +9,8 @@ import type {
   Instrument,
   Note,
   Project,
+  Section,
+  SectionType,
   SynthConfig,
 } from './types';
 
@@ -92,6 +95,29 @@ export function makeClip(
     lengthBars: opts.lengthBars ?? 1,
     notes: opts.notes,
     steps: opts.steps,
+  };
+}
+
+/**
+ * Build a Section from its type template (spec §5.4). Clip assignments stay SPARSE
+ * — a missing entry means "play this instrument's default clip", exactly like the
+ * jam's active-clip fallback. We only write an explicit `null` for instruments the
+ * template silences (e.g. drums in a bridge), so adding tracks later needs no
+ * section bookkeeping. Automation moves come pre-filled from the template.
+ */
+export function makeSection(type: SectionType, instruments: Instrument[]): Section {
+  const tmpl = SECTION_TEMPLATES[type];
+  const clipAssignments: Record<string, string | null> = {};
+  for (const inst of instruments) {
+    if (tmpl.silentKinds.includes(inst.kind)) clipAssignments[inst.id] = null;
+  }
+  return {
+    id: id(),
+    name: tmpl.label,
+    type,
+    lengthBars: tmpl.defaultBars,
+    clipAssignments,
+    automation: tmpl.automation(instruments),
   };
 }
 

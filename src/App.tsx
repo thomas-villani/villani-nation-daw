@@ -11,11 +11,13 @@ import { InstrumentPanel } from './components/instruments/InstrumentPanel';
 import { ClipBar } from './components/clips/ClipBar';
 import { DrumGrid } from './components/drumgrid/DrumGrid';
 import { PianoRoll } from './components/pianoroll/PianoRoll';
+import { SongView } from './components/song/SongView';
 
 export default function App() {
   useEngineSync(); // store -> audio engine bridge (mounted once)
   useAutosave(); // project -> localStorage autosave (mounted once)
 
+  const mode = useProjectStore((s) => s.ui.mode);
   const selectedId = useProjectStore((s) => s.ui.selectedInstrumentId);
   const instrument = useProjectStore((s) => selectInstrumentById(s.project, selectedId));
   const activeMap = useProjectStore((s) => s.ui.activeClipByInstrument);
@@ -31,15 +33,21 @@ export default function App() {
         <InstrumentRail />
 
         <div className="flex-1 flex flex-col items-center overflow-auto">
-          {instrument && <ClipBar instrument={instrument} />}
-          {instrument && clip ? (
-            instrument.kind === 'drumkit' ? (
-              <DrumGrid instrument={instrument} clip={clip} />
-            ) : (
-              <PianoRoll instrument={instrument} clip={clip} musicKey={musicKey} />
-            )
+          {mode === 'song' ? (
+            <SongView />
           ) : (
-            <div className="text-white/40 mt-20">Select a track to start jamming 🎶</div>
+            <>
+              {instrument && <ClipBar instrument={instrument} />}
+              {instrument && clip ? (
+                instrument.kind === 'drumkit' ? (
+                  <DrumGrid instrument={instrument} clip={clip} />
+                ) : (
+                  <PianoRoll instrument={instrument} clip={clip} musicKey={musicKey} />
+                )
+              ) : (
+                <div className="text-white/40 mt-20">Select a track to start jamming 🎶</div>
+              )}
+            </>
           )}
         </div>
 
