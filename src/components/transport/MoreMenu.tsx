@@ -17,12 +17,8 @@ export function MoreMenu() {
   const masterVolume = useProjectStore((s) => s.ui.masterVolume);
   const setMasterVolume = useProjectStore((s) => s.setMasterVolume);
 
-  const showMixer = useProjectStore((s) => s.ui.showMixer);
   const showVisualizer = useProjectStore((s) => s.ui.showVisualizer);
-  const showCoach = useProjectStore((s) => s.ui.showCoach);
-  const toggleMixer = useProjectStore((s) => s.toggleMixer);
   const toggleVisualizer = useProjectStore((s) => s.toggleVisualizer);
-  const toggleCoach = useProjectStore((s) => s.toggleCoach);
 
   // Close on outside click while open.
   useEffect(() => {
@@ -35,7 +31,7 @@ export function MoreMenu() {
   }, [open]);
 
   return (
-    <div className="relative ml-auto" ref={ref}>
+    <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
         className={`btn text-sm ${open ? 'bg-hi text-ink border-yellow-600' : ''}`}
@@ -65,9 +61,7 @@ export function MoreMenu() {
 
           <div className="h-px bg-edge" />
 
-          <ToggleRow label="🎚️ Mixer" hint="Faders, meters + export" active={showMixer} onClick={toggleMixer} />
           <ToggleRow label="🎇 Visualizer" hint="Watch the sound dance" active={showVisualizer} onClick={toggleVisualizer} />
-          <ToggleRow label="🧭 Coach" hint="Step-by-step helper" active={showCoach} onClick={toggleCoach} />
 
           <div className="h-px bg-edge" />
 

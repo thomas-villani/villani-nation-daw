@@ -39,7 +39,10 @@ export default function App() {
       <div className="flex-1 flex gap-4 p-4 overflow-auto">
         <InstrumentRail />
 
-        <div className="flex-1 flex flex-col items-center overflow-auto">
+        {/* `safe center` centers the editor when it fits, but falls back to
+            start-alignment when it's wider than the column — otherwise centering
+            clips the left edge unreachably (the sequencer was getting cut off). */}
+        <div className="flex-1 flex flex-col [align-items:safe_center] overflow-auto">
           {mode === 'song' ? (
             <SongView />
           ) : (

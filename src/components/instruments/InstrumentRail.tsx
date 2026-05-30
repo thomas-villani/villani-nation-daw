@@ -11,7 +11,7 @@ export function InstrumentRail() {
   const update = useProjectStore((s) => s.updateInstrument);
 
   return (
-    <div className="panel w-48 flex flex-col gap-2">
+    <div className="panel w-48 shrink-0 flex flex-col gap-2">
       <h2 className="font-bold text-sm uppercase tracking-wider text-white/50">Tracks</h2>
       {instruments.map((inst) => {
         const active = inst.id === selectedId;

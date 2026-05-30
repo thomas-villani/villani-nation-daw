@@ -17,12 +17,16 @@ export function TransportBar() {
   const scale = useProjectStore((s) => s.project.key.scale);
   const isPlaying = useProjectStore((s) => s.transport.isPlaying);
   const mode = useProjectStore((s) => s.ui.mode);
+  const showMixer = useProjectStore((s) => s.ui.showMixer);
+  const showCoach = useProjectStore((s) => s.ui.showCoach);
 
   const setMode = useProjectStore((s) => s.setMode);
   const setBpm = useProjectStore((s) => s.setBpm);
   const setKeyRoot = useProjectStore((s) => s.setKeyRoot);
   const setScale = useProjectStore((s) => s.setScale);
   const setIsPlaying = useProjectStore((s) => s.setIsPlaying);
+  const toggleMixer = useProjectStore((s) => s.toggleMixer);
+  const toggleCoach = useProjectStore((s) => s.toggleCoach);
 
   const handlePlay = async () => {
     if (isPlaying) {
@@ -102,6 +106,22 @@ export function TransportBar() {
           ))}
         </select>
       </Control>
+
+      <button
+        onClick={toggleMixer}
+        className={`btn text-sm ml-auto ${showMixer ? 'bg-hi text-ink border-yellow-600' : ''}`}
+        title="Open the mixer board + export"
+      >
+        🎚️ Mixer
+      </button>
+
+      <button
+        onClick={toggleCoach}
+        className={`btn text-sm ${showCoach ? 'bg-hi text-ink border-yellow-600' : ''}`}
+        title="Show the step-by-step coach"
+      >
+        🧭 Coach
+      </button>
 
       <MoreMenu />
     </div>

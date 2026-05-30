@@ -42,7 +42,7 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
 
   if (instrument.kind === 'drumkit') {
     return (
-      <div className="panel w-72">
+      <div className="panel w-60 shrink-0">
         <h2 className="font-bold text-lg mb-2" style={{ color: instrument.color }}>
           {instrument.name}
         </h2>
@@ -60,7 +60,7 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
     instrument.effects.find((e) => e.type === type)!;
 
   return (
-    <div className="panel w-72 flex flex-col gap-4 overflow-y-auto">
+    <div className="panel w-60 shrink-0 flex flex-col gap-3 overflow-y-auto">
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-bold text-lg" style={{ color: instrument.color }}>
           {instrument.name}
