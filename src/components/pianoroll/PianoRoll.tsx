@@ -1,7 +1,14 @@
 import { useRef, useState } from 'react';
 import { ROLL_OCTAVE_SPAN, STEPS_PER_BAR } from '../../lib/constants';
-import { degreeToMidi, midiToName, scaleLength } from '../../lib/scales';
-import type { Clip, Instrument, Project } from '../../model/types';
+import {
+  CHORD_LABELS,
+  CHORD_SHAPES,
+  type ChordShape,
+  degreeToMidi,
+  midiToName,
+  scaleLength,
+} from '../../lib/scales';
+import type { Clip, Instrument, Note, Project } from '../../model/types';
 import { engine } from '../../audio/engine';
 import { useProjectStore } from '../../store/useProjectStore';
 import { Playhead } from '../transport/Playhead';
@@ -25,6 +32,16 @@ interface Draft {
   endCol: number;
 }
 
+// 'note' = stamp a single note; otherwise stamp the named diatonic chord shape.
+type Brush = 'note' | ChordShape;
+const BRUSHES: { id: Brush; label: string }[] = [
+  { id: 'note', label: '● Note' },
+  { id: 'triad', label: CHORD_LABELS.triad },
+  { id: 'power', label: CHORD_LABELS.power },
+  { id: 'seventh', label: CHORD_LABELS.seventh },
+  { id: 'sus', label: CHORD_LABELS.sus },
+];
+
 export function PianoRoll({ instrument, clip, musicKey }: Props) {
   const len = scaleLength(musicKey.scale);
   const belowHome = len; // one octave of in-key rows below home
@@ -35,10 +52,16 @@ export function PianoRoll({ instrument, clip, musicKey }: Props) {
 
   const notes = clip.notes ?? [];
   const addNote = useProjectStore((s) => s.addNote);
+  const addNotes = useProjectStore((s) => s.addNotes);
   const removeNote = useProjectStore((s) => s.removeNote);
 
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [brush, setBrush] = useState<Brush>('note');
+
+  // The cumulative scale-degree offsets the current brush stamps above the base
+  // row ([0] for a single note). Scale steps, so the chord stays in-key always.
+  const brushOffsets = brush === 'note' ? [0] : CHORD_SHAPES[brush];
 
   const width = cols * CELL_W;
   const height = rows * ROW_H;
@@ -74,7 +97,11 @@ export function PianoRoll({ instrument, clip, musicKey }: Props) {
     }
     surfaceRef.current!.setPointerCapture(e.pointerId);
     setDraft({ rowFromTop, startCol: col, endCol: col });
-    engine.auditionNote(instrument.id, midiForRow(rowFromTop));
+    // Audition every tone of the brush so a chord is heard as it's drawn.
+    const baseEff = rowToEffIndex(rowFromTop);
+    for (const off of brushOffsets) {
+      engine.auditionNote(instrument.id, degreeToMidi(baseEff + off, 0, musicKey.root, musicKey.scale));
+    }
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -86,26 +113,52 @@ export function PianoRoll({ instrument, clip, musicKey }: Props) {
 
   const handlePointerUp = () => {
     if (!draft) return;
-    const eff = rowToEffIndex(draft.rowFromTop);
-    addNote(clip.id, {
-      degree: eff, // cumulative degree, octave 0 — stays diatonic on key/scale change
+    const baseEff = rowToEffIndex(draft.rowFromTop);
+    const start = draft.startCol;
+    const duration = draft.endCol - draft.startCol + 1;
+    // One note per brush tone. Each is a normal, independently editable Note —
+    // octave 0 keeps it diatonic across any key/scale change.
+    const stamped: Note[] = brushOffsets.map((off) => ({
+      degree: baseEff + off,
       octave: 0,
-      start: draft.startCol,
-      duration: draft.endCol - draft.startCol + 1,
+      start,
+      duration,
       velocity: 0.85,
-    });
+    }));
+    if (stamped.length === 1) addNote(clip.id, stamped[0]);
+    else addNotes(clip.id, stamped);
     setDraft(null);
   };
 
   return (
     <div className="panel inline-block">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 gap-4">
         <h2 className="font-bold text-lg" style={{ color: instrument.color }}>
           {instrument.name} — {clip.name}
         </h2>
         <span className="text-xs text-white/40">
           click to add · click a note to remove · drag to lengthen
         </span>
+      </div>
+
+      {/* Brush: single note, or stamp a diatonic chord (always in-key). */}
+      <div className="flex items-center gap-1.5 mb-3">
+        <span className="text-[10px] uppercase tracking-wider text-white/40 mr-1">Brush</span>
+        {BRUSHES.map((b) => {
+          const active = brush === b.id;
+          return (
+            <button
+              key={b.id}
+              className={`rounded-full border-2 px-3 py-1 text-xs font-bold ${
+                active ? 'bg-panel2' : 'border-edge hover:border-white/30'
+              }`}
+              style={active ? { borderColor: instrument.color } : undefined}
+              onClick={() => setBrush(b.id)}
+            >
+              {b.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex">
@@ -209,19 +262,25 @@ export function PianoRoll({ instrument, clip, musicKey }: Props) {
               );
             })}
 
-            {/* Drag preview */}
-            {draft && (
-              <div
-                className="absolute rounded-md z-10 opacity-60"
-                style={{
-                  left: draft.startCol * CELL_W + 1,
-                  top: draft.rowFromTop * ROW_H + 2,
-                  width: (draft.endCol - draft.startCol + 1) * CELL_W - 2,
-                  height: ROW_H - 4,
-                  backgroundColor: instrument.color,
-                }}
-              />
-            )}
+            {/* Drag preview — one block per brush tone (a chord shows its stack) */}
+            {draft &&
+              brushOffsets.map((off) => {
+                const rowFromTop = effIndexToRow(rowToEffIndex(draft.rowFromTop) + off);
+                if (rowFromTop < 0 || rowFromTop >= rows) return null;
+                return (
+                  <div
+                    key={off}
+                    className="absolute rounded-md z-10 opacity-60"
+                    style={{
+                      left: draft.startCol * CELL_W + 1,
+                      top: rowFromTop * ROW_H + 2,
+                      width: (draft.endCol - draft.startCol + 1) * CELL_W - 2,
+                      height: ROW_H - 4,
+                      backgroundColor: instrument.color,
+                    }}
+                  />
+                );
+              })}
           </div>
         </div>
       </div>

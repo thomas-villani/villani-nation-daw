@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type {
+  Clip,
   EffectType,
   Instrument,
   InstrumentKind,
@@ -29,6 +30,10 @@ interface TransportState {
 
 interface UiState {
   selectedInstrumentId: string | null;
+  // Which clip is "active" (shown in the editor AND looping) per instrument.
+  // Sparse: a missing entry falls back to the instrument's first clip, so this
+  // never needs eager bookkeeping when clips/instruments are added or loaded.
+  activeClipByInstrument: Record<string, string>;
   masterVolume: number; // 0..1
   lastSavedAt: number | null; // epoch ms of the last autosave (drives the "Saved ✓" hint)
 }
@@ -61,6 +66,13 @@ export interface ProjectStore {
   updateEffect(id: string, type: EffectType, params: Record<string, number>): void;
   selectInstrument(id: string): void;
 
+  // clips (phase 4 — multiple clips per instrument)
+  selectClip(instrumentId: string, clipId: string): void;
+  addClip(instrumentId: string): string;
+  duplicateClip(clipId: string): string | null;
+  removeClip(clipId: string): void;
+  renameClip(clipId: string, name: string): void;
+
   // drum clip editing
   toggleStep(clipId: string, padIndex: number, step: number): void;
   setPadGain(instrumentId: string, padIndex: number, gain: number): void;
@@ -69,6 +81,7 @@ export interface ProjectStore {
 
   // melodic clip editing
   addNote(clipId: string, note: Note): void;
+  addNotes(clipId: string, notes: Note[]): void; // batch (e.g. a chord stamp)
   updateNote(clipId: string, index: number, patch: Partial<Note>): void;
   removeNote(clipId: string, index: number): void;
 }
@@ -86,6 +99,7 @@ export const useProjectStore = create<ProjectStore>()(
         transport: { isPlaying: false },
         ui: {
           selectedInstrumentId: initial.instruments[0]?.id ?? null,
+          activeClipByInstrument: {},
           masterVolume: 0.9,
           lastSavedAt: null,
         },
@@ -95,11 +109,13 @@ export const useProjectStore = create<ProjectStore>()(
             const fresh = makeDefaultProject();
             s.project = fresh;
             s.ui.selectedInstrumentId = fresh.instruments[0]?.id ?? null;
+            s.ui.activeClipByInstrument = {};
           }),
         replaceProject: (project) =>
           set((s) => {
             s.project = project;
             s.ui.selectedInstrumentId = project.instruments[0]?.id ?? null;
+            s.ui.activeClipByInstrument = {};
           }),
         renameProject: (name) =>
           set((s) => {
@@ -142,10 +158,12 @@ export const useProjectStore = create<ProjectStore>()(
               : makeSynthInstrument('Lead', TRACK_COLORS.lead, { engine: 'poly', wave: 'triangle' });
           set((s) => {
             s.project.instruments.push(inst);
-            // Give synth instruments an empty starter clip so the roll has a target.
-            if (kind !== 'drumkit') {
-              s.project.clips.push(makeClip(inst.id, 'Main', { notes: [] }));
-            }
+            // Every instrument needs an empty starter clip so the editor has a target.
+            const starter =
+              kind === 'drumkit'
+                ? makeClip(inst.id, 'Beat 1', { steps: [] })
+                : makeClip(inst.id, 'Clip 1', { notes: [] });
+            s.project.clips.push(starter);
             s.ui.selectedInstrumentId = inst.id;
           });
           return inst.id;
@@ -154,6 +172,7 @@ export const useProjectStore = create<ProjectStore>()(
           set((s) => {
             s.project.instruments = s.project.instruments.filter((i) => i.id !== id);
             s.project.clips = s.project.clips.filter((c) => c.instrumentId !== id);
+            delete s.ui.activeClipByInstrument[id];
             if (s.ui.selectedInstrumentId === id) {
               s.ui.selectedInstrumentId = s.project.instruments[0]?.id ?? null;
             }
@@ -183,6 +202,62 @@ export const useProjectStore = create<ProjectStore>()(
         selectInstrument: (id) =>
           set((s) => {
             s.ui.selectedInstrumentId = id;
+          }),
+
+        selectClip: (instrumentId, clipId) =>
+          set((s) => {
+            s.ui.activeClipByInstrument[instrumentId] = clipId;
+          }),
+        addClip: (instrumentId) => {
+          const inst = findInstrument(useProjectStore.getState().project, instrumentId);
+          const isDrum = inst?.kind === 'drumkit';
+          const count = useProjectStore
+            .getState()
+            .project.clips.filter((c) => c.instrumentId === instrumentId).length;
+          const clip = makeClip(
+            instrumentId,
+            isDrum ? `Beat ${count + 1}` : `Clip ${count + 1}`,
+            isDrum ? { steps: [] } : { notes: [] },
+          );
+          set((s) => {
+            s.project.clips.push(clip);
+            s.ui.activeClipByInstrument[instrumentId] = clip.id; // jump to the new clip
+          });
+          return clip.id;
+        },
+        duplicateClip: (clipId) => {
+          const src = findClip(useProjectStore.getState().project, clipId);
+          if (!src) return null;
+          // Deep-copy the pattern so the duplicate edits independently.
+          const copy = makeClip(src.instrumentId, `${src.name} copy`, {
+            lengthBars: src.lengthBars,
+            notes: src.notes ? src.notes.map((n) => ({ ...n })) : undefined,
+            steps: src.steps ? src.steps.map((st) => ({ ...st })) : undefined,
+          });
+          set((s) => {
+            s.project.clips.push(copy);
+            s.ui.activeClipByInstrument[src.instrumentId] = copy.id;
+          });
+          return copy.id;
+        },
+        removeClip: (clipId) =>
+          set((s) => {
+            const clip = findClip(s.project, clipId);
+            if (!clip) return;
+            const siblings = s.project.clips.filter((c) => c.instrumentId === clip.instrumentId);
+            if (siblings.length <= 1) return; // keep at least one clip per instrument
+            s.project.clips = s.project.clips.filter((c) => c.id !== clipId);
+            if (s.ui.activeClipByInstrument[clip.instrumentId] === clipId) {
+              // Fall back to the first surviving clip for this instrument.
+              const next = s.project.clips.find((c) => c.instrumentId === clip.instrumentId);
+              if (next) s.ui.activeClipByInstrument[clip.instrumentId] = next.id;
+              else delete s.ui.activeClipByInstrument[clip.instrumentId];
+            }
+          }),
+        renameClip: (clipId, name) =>
+          set((s) => {
+            const clip = findClip(s.project, clipId);
+            if (clip) clip.name = name;
           }),
 
         toggleStep: (clipId, padIndex, step) =>
@@ -220,6 +295,13 @@ export const useProjectStore = create<ProjectStore>()(
             if (!clip.notes) clip.notes = [];
             clip.notes.push(note);
           }),
+        addNotes: (clipId, notes) =>
+          set((s) => {
+            const clip = findClip(s.project, clipId);
+            if (!clip || notes.length === 0) return;
+            if (!clip.notes) clip.notes = [];
+            clip.notes.push(...notes);
+          }),
         updateNote: (clipId, index, patch) =>
           set((s) => {
             const clip = findClip(s.project, clipId);
@@ -238,11 +320,30 @@ export const useProjectStore = create<ProjectStore>()(
 
 // --- selectors (pure; used by components and the engine bridge) ---
 
-/** One active clip per instrument (phase 1-2: the first clip for each). */
-export function selectActiveClips(p: Project) {
-  const out = [];
+type ActiveMap = Record<string, string>;
+
+/**
+ * The active clip for one instrument: the one named in the active map, or — when
+ * that entry is missing or stale — the instrument's first clip. This sparse
+ * fallback is why adding clips / loading projects needs no map bookkeeping.
+ */
+export const selectClipForInstrument = (
+  p: Project,
+  instrumentId: string,
+  activeMap: ActiveMap = {},
+): Clip | undefined => {
+  const wantedId = activeMap[instrumentId];
+  const chosen = wantedId
+    ? p.clips.find((c) => c.id === wantedId && c.instrumentId === instrumentId)
+    : undefined;
+  return chosen ?? p.clips.find((c) => c.instrumentId === instrumentId);
+};
+
+/** One active clip per instrument — what the jam loops. */
+export function selectActiveClips(p: Project, activeMap: ActiveMap = {}): Clip[] {
+  const out: Clip[] = [];
   for (const inst of p.instruments) {
-    const clip = p.clips.find((c) => c.instrumentId === inst.id);
+    const clip = selectClipForInstrument(p, inst.id, activeMap);
     if (clip) out.push(clip);
   }
   return out;
@@ -250,6 +351,3 @@ export function selectActiveClips(p: Project) {
 
 export const selectInstrumentById = (p: Project, id: string | null) =>
   id ? p.instruments.find((i) => i.id === id) : undefined;
-
-export const selectClipForInstrument = (p: Project, instrumentId: string) =>
-  p.clips.find((c) => c.instrumentId === instrumentId);

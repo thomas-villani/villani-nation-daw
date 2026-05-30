@@ -17,8 +17,8 @@ export function useEngineSync(): void {
     const rebuildJam = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
-        const { project } = store.getState();
-        engine.loadJam(project, selectActiveClips(project));
+        const { project, ui } = store.getState();
+        engine.loadJam(project, selectActiveClips(project, ui.activeClipByInstrument));
       }, 80);
     };
 
@@ -28,7 +28,7 @@ export function useEngineSync(): void {
     engine.setSwing(s0.project.swing);
     engine.setMasterVolume(s0.ui.masterVolume);
     engine.syncInstruments(s0.project.instruments);
-    engine.loadJam(s0.project, selectActiveClips(s0.project));
+    engine.loadJam(s0.project, selectActiveClips(s0.project, s0.ui.activeClipByInstrument));
 
     const unsubs = [
       store.subscribe((st) => st.project.bpm, (bpm) => engine.setTempo(bpm)),
@@ -36,9 +36,10 @@ export function useEngineSync(): void {
       store.subscribe((st) => st.ui.masterVolume, (v) => engine.setMasterVolume(v)),
       // Instrument changes (incl. synth/effect params) -> live reconcile, diffed by id.
       store.subscribe((st) => st.project.instruments, (insts) => engine.syncInstruments(insts)),
-      // Clips or key changed -> rebuild the looping Parts (debounced).
+      // Clips, key, or the active-clip selection changed -> rebuild the looping
+      // Parts (debounced). Switching the active clip per instrument re-jams here.
       store.subscribe(
-        (st) => [st.project.clips, st.project.key] as const,
+        (st) => [st.project.clips, st.project.key, st.ui.activeClipByInstrument] as const,
         rebuildJam,
         { equalityFn: shallow },
       ),

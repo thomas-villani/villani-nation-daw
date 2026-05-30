@@ -17,6 +17,27 @@ export const SCALES: Record<ScaleName, number[]> = {
 
 export const scaleLength = (scale: ScaleName) => SCALES[scale].length;
 
+// Chord shapes as DIATONIC scale-step offsets stacked above the played degree
+// (spec §5.3, phase-4 chord stamp). Because they're scale steps — not semitones —
+// every stamped chord stays in-key for ANY key/scale, so there are still no wrong
+// notes. Stacking thirds (0,2,4,6) in a 7-note scale gives real triads/7ths; in a
+// 5-note pentatonic the same offsets give pleasant in-scale stacks.
+export type ChordShape = 'triad' | 'power' | 'seventh' | 'sus';
+
+export const CHORD_SHAPES: Record<ChordShape, number[]> = {
+  triad: [0, 2, 4], // 1-3-5
+  power: [0, 4], // root + fifth (no third)
+  seventh: [0, 2, 4, 6], // 1-3-5-7
+  sus: [0, 3, 4], // 1-4-5 (suspended)
+};
+
+export const CHORD_LABELS: Record<ChordShape, string> = {
+  triad: 'Triad',
+  power: 'Power',
+  seventh: '7th',
+  sus: 'Sus',
+};
+
 // Octave anchor: degree 0 / octave 0 (the kid's "home" row) sits at C3 (MIDI 48),
 // placing the default playing range comfortably in the middle.
 const BASE_OCTAVE_MIDI = 48;

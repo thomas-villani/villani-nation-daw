@@ -8,7 +8,7 @@ to building full tracks later.
 Built from [`fruityloops-for-kids-spec.md`](./fruityloops-for-kids-spec.md)
 (design codename "Loopa").
 
-## What works today (phases 1–3)
+## What works today (phases 1–4)
 
 - **🥁 Drum grid** — tap a 16-step grid to build a beat with procedural
   kick / snare / hat / clap. Mute pads, or drag a `.wav` onto a row to swap in your
@@ -16,6 +16,12 @@ Built from [`fruityloops-for-kids-spec.md`](./fruityloops-for-kids-spec.md)
 - **🎹 Scale-degree piano roll** — every row is in-key (the home/root row is
   marked ★), so you can't play a wrong note. Click to add, click a note to remove,
   drag to lengthen.
+- **🎼 Chord stamp** — switch the piano-roll brush from a single note to **Triad /
+  Power / 7th / Sus** and one click lays down a whole chord — always in-key, and
+  each note stays individually editable.
+- **🗂️ Multiple clips per track** — keep several patterns per instrument (e.g.
+  "Verse bass" / "Drop bass"), switch between them, duplicate, and rename. The
+  highlighted clip is the one you hear.
 - **🎚️ Synth + effects** — mono / poly / FM engines, waveform, voices & detune,
   filter, envelope (friendly *or* full ADSR), glide, plus toggleable distortion,
   reverb, and delay.

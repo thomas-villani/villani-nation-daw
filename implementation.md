@@ -19,7 +19,7 @@ browser first. npm (not uv). Windows dev box.
 | 1 | Audio engine spike (loop + synced playhead) | ✅ Done |
 | 2 | Clip editor + instruments (drum grid, piano roll, synth panel, jam) | ✅ Done |
 | 3 | Project model + persistence (localStorage autosave, JSON import/export) | ✅ Done |
-| 4 | Multiple clips per instrument + chord stamp brush | ⬜ Not started |
+| 4 | Multiple clips per instrument + chord stamp brush | ✅ Done |
 | 5 | Song view (sections, arrangement timeline, automation, templates) | ⬜ Not started |
 | 6 | Mix & export (mixer panel + meters, WAV/MP3 via `Tone.Offline`) | ⬜ Not started |
 | 7 | Polish (generators / ✨ Surprise, coach overlay, audio visualizer) | ⬜ Not started |
@@ -97,9 +97,31 @@ Files: `src/audio/{engine,scheduler,transportClock,drums,InstrumentVoice}.ts`,
 - Verified in Chrome: rename → autosave to localStorage, JSON round-trips, zero
   console errors.
 
-### ⬜ Phase 4 — Multiple clips + chord stamp
-Clip selector/duplicate per instrument; chord-mode brush on the piano roll that
-stamps diatonic chord shapes (Triad/Power/7th/Sus) as normal editable notes.
+### ✅ Phase 4 — Multiple clips + chord stamp
+- **Multiple clips per instrument.** The model already held a flat `clips[]` keyed
+  by `instrumentId`; what was missing was *which* clip is live. Added a **sparse**
+  `ui.activeClipByInstrument` map (instrumentId → clipId) — a missing entry falls
+  back to the instrument's first clip, so loading a project or adding clips needs
+  no eager bookkeeping. The active clip is both what the editor shows AND what the
+  jam loops.
+- **`ClipBar`** (`src/components/clips/ClipBar.tsx`, above the editor): clip pills
+  per instrument — click to switch, double-click to rename, ✕ to delete (kept ≥1),
+  `＋` new empty clip, `⧉ Copy` to duplicate the current pattern. Store actions
+  `selectClip` / `addClip` / `duplicateClip` / `removeClip` / `renameClip`.
+- **Engine bridge** now also subscribes to `ui.activeClipByInstrument`, so switching
+  the active clip re-jams through the existing debounced `loadJam` — no engine
+  changes. `selectActiveClips(project, activeMap)` resolves the live clip per track.
+- **Chord-stamp brush** on the piano roll: a Brush selector (● Note · Triad · Power ·
+  7th · Sus). Chord shapes live in `lib/scales.ts` as **diatonic scale-step offsets**
+  (`triad [0,2,4]`, `power [0,4]`, `seventh [0,2,4,6]`, `sus [0,3,4]`) — stacked in
+  *scale steps*, not semitones, so a stamped chord is always in-key for any
+  key/scale (the "no wrong notes" rule still holds). Each tone is a normal,
+  independently editable `Note`; the drag preview shows the whole stack and all
+  tones audition on stamp. New batch action `addNotes(clipId, notes)`.
+- **Drive-by fix:** `addInstrument` now gives a *drum* track a starter clip too
+  (previously only synths got one, so a freshly added drum kit had nothing to edit).
+- Verified in Chrome: add 2nd clip pill, switch tracks, Triad stamp adds exactly 3
+  in-key notes to the active clip (persisted round-trip), zero console errors.
 
 ### ⬜ Phase 5 — Song view
 Section blocks, arrangement timeline, per-section clip assignments, automation
