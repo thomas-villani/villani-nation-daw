@@ -17,6 +17,7 @@ import type {
 } from '../model/types';
 import {
   makeDefaultProject,
+  makeEmptyProject,
   makeDrumInstrument,
   makeClip,
   makeSection,
@@ -58,7 +59,7 @@ export interface ProjectStore {
   ui: UiState;
 
   // project lifecycle (phase 3 — persistence)
-  newProject(): void;
+  newProject(blank: boolean): void;
   replaceProject(project: Project): void;
   renameProject(name: string): void;
   markSaved(at: number): void;
@@ -146,13 +147,14 @@ export const useProjectStore = create<ProjectStore>()(
           lastSavedAt: null,
         },
 
-        newProject: () =>
+        newProject: (blank) =>
           set((s) => {
-            const fresh = makeDefaultProject();
+            const fresh = blank ? makeEmptyProject() : makeDefaultProject();
             s.project = fresh;
             s.ui.selectedInstrumentId = fresh.instruments[0]?.id ?? null;
             s.ui.selectedSectionId = null;
             s.ui.activeClipByInstrument = {};
+            s.ui.mode = 'jam'; // a fresh start always begins in jam mode
           }),
         replaceProject: (project) =>
           set((s) => {

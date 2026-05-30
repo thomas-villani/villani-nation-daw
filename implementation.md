@@ -250,6 +250,28 @@ Sample-folder browser, native save, packaged installer.
   split + one bridge, "read the audio / draw it," the engine reconciler, a worked
   example) — the "why" companion to this phase log. Linked from the README.
 
+## UX polish (post-phase-7 feedback)
+- **Decluttered top bar.** The transport bar overflowed on smaller screens. It now
+  keeps only the essentials — Play, 🔁Jam/🎬Song, Tempo, Key, Scale — and a new
+  `⚙ More` click-away popover (`src/components/transport/MoreMenu.tsx`) holds Swing,
+  Volume, the 🎚️Mixer/🎇Visualizer/🧭Coach toggles, and the File cluster. Keeping
+  the bar uncrowded also keeps the **🎬 Song** toggle (the entry to the arrangement
+  timeline) on-screen — the "where's the song view?" was a discoverability symptom of
+  the overflow. `ProjectMenu` was reworked to a vertical layout for the menu.
+- **✨ New asks blank vs. starter.** `newProject(blank)` + `makeEmptyProject()`: New
+  now offers **🆕 Blank canvas** (empty drum+bass clips → coach resets to step 1) or
+  **🎵 Starter jam** (the fun pre-filled project). Fixes "New stayed pre-populated and
+  the coach was stuck mid-way" — the coach reads completion from the data, so a blank
+  project resets it cleanly. New also returns to jam mode.
+- **Synth presets** (`src/lib/synthPresets.ts`): a "Sounds" chip row above the voice
+  controls (Deep Bass, Buzzy Bass, Bright Lead, Soft Pad, Pluck, Dreamy, FM Bell,
+  Organ). Each is a complete `SynthConfig` stamped via `updateSynthConfig` so every
+  control visibly jumps — exploration-first.
+- **`? Help` mode** in the instrument panel: a toggle that reveals a one-line,
+  kid-friendly blurb under each control (engine, wave, voices, detune, brightness,
+  resonance, attack, release, glide, effects). Off by default; `Slider` gained
+  optional `help`/`showHelp` props.
+
 ---
 
 ## Open questions / decisions

@@ -2,7 +2,7 @@ import { engine } from '../../audio/engine';
 import { useProjectStore } from '../../store/useProjectStore';
 import { ROOT_NAMES } from '../../lib/scales';
 import type { ScaleName } from '../../model/types';
-import { ProjectMenu } from './ProjectMenu';
+import { MoreMenu } from './MoreMenu';
 
 const SCALE_OPTIONS: { value: ScaleName; label: string }[] = [
   { value: 'majPent', label: 'Happy 5' },
@@ -13,25 +13,15 @@ const SCALE_OPTIONS: { value: ScaleName; label: string }[] = [
 
 export function TransportBar() {
   const bpm = useProjectStore((s) => s.project.bpm);
-  const swing = useProjectStore((s) => s.project.swing);
   const root = useProjectStore((s) => s.project.key.root);
   const scale = useProjectStore((s) => s.project.key.scale);
-  const masterVolume = useProjectStore((s) => s.ui.masterVolume);
   const isPlaying = useProjectStore((s) => s.transport.isPlaying);
   const mode = useProjectStore((s) => s.ui.mode);
-  const showMixer = useProjectStore((s) => s.ui.showMixer);
-  const showCoach = useProjectStore((s) => s.ui.showCoach);
-  const showVisualizer = useProjectStore((s) => s.ui.showVisualizer);
 
   const setMode = useProjectStore((s) => s.setMode);
-  const toggleMixer = useProjectStore((s) => s.toggleMixer);
-  const toggleCoach = useProjectStore((s) => s.toggleCoach);
-  const toggleVisualizer = useProjectStore((s) => s.toggleVisualizer);
   const setBpm = useProjectStore((s) => s.setBpm);
-  const setSwing = useProjectStore((s) => s.setSwing);
   const setKeyRoot = useProjectStore((s) => s.setKeyRoot);
   const setScale = useProjectStore((s) => s.setScale);
-  const setMasterVolume = useProjectStore((s) => s.setMasterVolume);
   const setIsPlaying = useProjectStore((s) => s.setIsPlaying);
 
   const handlePlay = async () => {
@@ -60,12 +50,14 @@ export function TransportBar() {
         {isPlaying ? '■ Stop' : '▶ Play'}
       </button>
 
-      {/* Jam (loop the active clips) vs Song (play the arrangement). */}
+      {/* Jam (loop the active clips) vs Song (arrange a full track on a timeline).
+          Kept prominent in the bar so the song timeline is easy to find. */}
       <div className="flex rounded-xl border-2 border-edge overflow-hidden">
         {(['jam', 'song'] as const).map((m) => (
           <button
             key={m}
             onClick={() => setMode(m)}
+            title={m === 'jam' ? 'Loop your clips together' : 'Arrange a full song on a timeline'}
             className={`px-3 py-2 text-sm font-bold ${
               mode === m ? 'bg-hi text-ink' : 'bg-panel2 text-white/60 hover:text-white'
             }`}
@@ -81,18 +73,6 @@ export function TransportBar() {
           <span className="w-12 text-center font-bold tabular-nums">{bpm}</span>
           <Stepper onClick={() => setBpm(bpm + 1)}>+</Stepper>
         </div>
-      </Control>
-
-      <Control label="Swing">
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={swing}
-          onChange={(e) => setSwing(Number(e.target.value))}
-          className="w-24 accent-hi"
-        />
       </Control>
 
       <Control label="Key">
@@ -123,43 +103,7 @@ export function TransportBar() {
         </select>
       </Control>
 
-      <Control label="Volume">
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={masterVolume}
-          onChange={(e) => setMasterVolume(Number(e.target.value))}
-          className="w-24 accent-hi"
-        />
-      </Control>
-
-      <button
-        onClick={toggleMixer}
-        className={`btn text-sm ${showMixer ? 'bg-hi text-ink border-yellow-600' : ''}`}
-        title="Open the mixer board + export"
-      >
-        🎚️ Mixer
-      </button>
-
-      <button
-        onClick={toggleVisualizer}
-        className={`btn text-sm ${showVisualizer ? 'bg-hi text-ink border-yellow-600' : ''}`}
-        title="Show the audio visualizer"
-      >
-        🎇
-      </button>
-
-      <button
-        onClick={toggleCoach}
-        className={`btn text-sm ${showCoach ? 'bg-hi text-ink border-yellow-600' : ''}`}
-        title="Show the step-by-step coach"
-      >
-        🧭
-      </button>
-
-      <ProjectMenu />
+      <MoreMenu />
     </div>
   );
 }

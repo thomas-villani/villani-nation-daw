@@ -2,6 +2,25 @@ import { useState } from 'react';
 import type { Instrument, SynthEngine, Waveform } from '../../model/types';
 import { useProjectStore } from '../../store/useProjectStore';
 import { Slider } from '../common/Slider';
+import { SYNTH_PRESETS } from '../../lib/synthPresets';
+
+// Plain-language, kid-friendly explanations revealed by the ? help toggle (#5).
+const HELP = {
+  presets: 'Tap a sound to load it, then tweak the knobs below to make it your own.',
+  engine: 'How notes are made. Mono = one bold note, Poly = play chords, FM = bell/metal tones.',
+  wave: 'The basic shape of the sound: sine is smooth, square is hollow, sawtooth is bright & buzzy.',
+  voices: 'Stacks copies of the note for a thicker, bigger sound.',
+  detune: 'Spreads the stacked voices apart for a wide, shimmery feel.',
+  cutoff: 'Brightness. Low = dull and muffled, high = bright and sparkly.',
+  resonance: 'Adds a whistle or zing right at the brightness point.',
+  attack: 'How fast the note starts. Low = punchy, high = it swells in softly.',
+  release: 'How long the note rings out after it ends.',
+  glide: 'Slides smoothly from one note to the next (Mono only).',
+  effects: 'Extras you flip on to flavor the sound. Try one at a time first.',
+  distortion: 'Adds grit and growl — makes it dirty and loud.',
+  reverb: 'Adds space, like playing in a big room or hall.',
+  delay: 'Echoes the note so it repeats and fades.',
+} as const;
 
 // Right panel: synth voice + effects controls (spec §5.3). Changes flow to the
 // store and are reconciled live by the engine bridge — no audio glitches because
@@ -16,6 +35,7 @@ const ENGINES: { value: SynthEngine; label: string }[] = [
 
 export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
   const [advanced, setAdvanced] = useState(false);
+  const [help, setHelp] = useState(false);
   const updateSynth = useProjectStore((s) => s.updateSynthConfig);
   const toggleEffect = useProjectStore((s) => s.toggleEffect);
   const updateEffect = useProjectStore((s) => s.updateEffect);
@@ -41,9 +61,36 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
 
   return (
     <div className="panel w-72 flex flex-col gap-4 overflow-y-auto">
-      <h2 className="font-bold text-lg" style={{ color: instrument.color }}>
-        {instrument.name}
-      </h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-bold text-lg" style={{ color: instrument.color }}>
+          {instrument.name}
+        </h2>
+        <button
+          onClick={() => setHelp((h) => !h)}
+          className={`btn text-xs px-2 py-1 ${help ? 'bg-hi text-ink border-yellow-600' : ''}`}
+          title="What does each control do?"
+        >
+          {help ? '✓ Help' : '? Help'}
+        </button>
+      </div>
+
+      {/* Presets — tap a ready-made sound, then tweak (#3) */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[10px] uppercase tracking-wide text-white/50 font-bold">Sounds</span>
+        <div className="flex flex-wrap gap-1.5">
+          {SYNTH_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => updateSynth(id, p.config)}
+              className="rounded-full border-2 border-edge hover:border-lead px-2.5 py-1 text-xs font-bold"
+              title={`Load the ${p.name} sound`}
+            >
+              {p.emoji} {p.name}
+            </button>
+          ))}
+        </div>
+        {help && <p className="text-[10px] text-white/45 leading-snug">{HELP.presets}</p>}
+      </div>
 
       {/* Engine + waveform */}
       <div className="flex gap-2">
@@ -72,6 +119,12 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
           </select>
         </label>
       </div>
+      {help && (
+        <div className="flex flex-col gap-1 -mt-2">
+          <p className="text-[10px] text-white/45 leading-snug">{HELP.engine}</p>
+          <p className="text-[10px] text-white/45 leading-snug">{HELP.wave}</p>
+        </div>
+      )}
 
       <Slider
         label="Voices"
@@ -81,6 +134,8 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
         value={synth.voices}
         onChange={(v) => updateSynth(id, { voices: v })}
         format={(v) => String(v)}
+        help={HELP.voices}
+        showHelp={help}
       />
       <Slider
         label="Detune"
@@ -90,6 +145,8 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
         value={synth.detune}
         onChange={(v) => updateSynth(id, { detune: v })}
         format={(v) => `${v}¢`}
+        help={HELP.detune}
+        showHelp={help}
       />
 
       <div className="h-px bg-edge" />
@@ -105,6 +162,8 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
           updateSynth(id, { filter: { ...synth.filter, cutoff: v } })
         }
         format={(v) => `${Math.round(v)}Hz`}
+        help={HELP.cutoff}
+        showHelp={help}
       />
       <Slider
         label="Resonance"
@@ -115,6 +174,8 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
         onChange={(v) =>
           updateSynth(id, { filter: { ...synth.filter, resonance: v } })
         }
+        help={HELP.resonance}
+        showHelp={help}
       />
 
       <div className="h-px bg-edge" />
@@ -129,6 +190,8 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
             value={synth.envelope.attack}
             onChange={(v) => updateSynth(id, { envelope: { ...synth.envelope, attack: v } })}
             format={(v) => `${(v * 1000).toFixed(0)}ms`}
+            help={HELP.attack}
+            showHelp={help}
           />
           <Slider
             label="Tail (release)"
@@ -137,6 +200,8 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
             value={synth.envelope.release}
             onChange={(v) => updateSynth(id, { envelope: { ...synth.envelope, release: v } })}
             format={(v) => `${v.toFixed(2)}s`}
+            help={HELP.release}
+            showHelp={help}
           />
         </>
       ) : (
@@ -159,6 +224,8 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
           value={synth.glide}
           onChange={(v) => updateSynth(id, { glide: v })}
           format={(v) => `${(v * 1000).toFixed(0)}ms`}
+          help={HELP.glide}
+          showHelp={help}
         />
       )}
       <button
@@ -172,6 +239,7 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
 
       {/* Effects: toggle + one knob each */}
       <h3 className="text-[10px] uppercase tracking-wider text-white/50 font-bold">Effects</h3>
+      {help && <p className="text-[10px] text-white/45 leading-snug -mt-2">{HELP.effects}</p>}
       <EffectRow
         name="Distortion"
         enabled={fx('distortion').enabled}
@@ -179,6 +247,7 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
         knobLabel="Amount"
         value={fx('distortion').params.amount ?? 0.3}
         onChange={(v) => updateEffect(id, 'distortion', { amount: v })}
+        help={help ? HELP.distortion : undefined}
       />
       <EffectRow
         name="Reverb"
@@ -187,6 +256,7 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
         knobLabel="Wet"
         value={fx('reverb').params.wet ?? 0.3}
         onChange={(v) => updateEffect(id, 'reverb', { wet: v })}
+        help={help ? HELP.reverb : undefined}
       />
       <EffectRow
         name="Delay"
@@ -195,6 +265,7 @@ export function InstrumentPanel({ instrument }: { instrument: Instrument }) {
         knobLabel="Wet"
         value={fx('delay').params.wet ?? 0.3}
         onChange={(v) => updateEffect(id, 'delay', { wet: v })}
+        help={help ? HELP.delay : undefined}
       />
     </div>
   );
@@ -207,6 +278,7 @@ function EffectRow(props: {
   knobLabel: string;
   value: number;
   onChange: (v: number) => void;
+  help?: string;
 }) {
   return (
     <div className={`rounded-xl border-2 p-2 ${props.enabled ? 'border-lead' : 'border-edge'}`}>
@@ -219,6 +291,7 @@ function EffectRow(props: {
           {props.enabled ? 'ON' : 'OFF'}
         </span>
       </button>
+      {props.help && <p className="text-[10px] text-white/45 leading-snug mb-1">{props.help}</p>}
       {props.enabled && (
         <Slider label={props.knobLabel} min={0} max={1} value={props.value} onChange={props.onChange} />
       )}

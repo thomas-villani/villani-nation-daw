@@ -6,10 +6,13 @@ interface Props {
   value: number;
   onChange: (v: number) => void;
   format?: (v: number) => string;
+  /** Plain-language explanation, shown under the slider when `showHelp` is on. */
+  help?: string;
+  showHelp?: boolean;
 }
 
 /** A chunky labeled slider used throughout the instrument panel. */
-export function Slider({ label, min, max, step = 0.01, value, onChange, format }: Props) {
+export function Slider({ label, min, max, step = 0.01, value, onChange, format, help, showHelp }: Props) {
   return (
     <label className="flex flex-col gap-1">
       <div className="flex justify-between text-[11px]">
@@ -25,6 +28,7 @@ export function Slider({ label, min, max, step = 0.01, value, onChange, format }
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full accent-hi"
       />
+      {showHelp && help && <p className="text-[10px] text-white/45 leading-snug">{help}</p>}
     </label>
   );
 }

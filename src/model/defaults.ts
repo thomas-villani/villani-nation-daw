@@ -169,3 +169,34 @@ export function makeDefaultProject(): Project {
     arrangement: [],
   };
 }
+
+/**
+ * A blank canvas: the same two starter tracks (drums + bass) but with EMPTY
+ * clips — nothing pre-filled. Because the coach reads completion from the data,
+ * a blank project resets it to step 1 ("Lay down a beat"). This is the "start
+ * from scratch" option behind ✨ New (the starter jam above is the other).
+ */
+export function makeEmptyProject(): Project {
+  const drums = makeDrumInstrument();
+  const bass = makeSynthInstrument('Bass', TRACK_COLORS.bass, {
+    engine: 'mono',
+    wave: 'sawtooth',
+    filter: { type: 'lowpass', cutoff: 900, resonance: 4 },
+  });
+
+  // One empty clip per track so each instrument has something to edit/loop.
+  const drumClip = makeClip(drums.id, 'Beat 1');
+  const bassClip = makeClip(bass.id, 'Bass 1');
+
+  return {
+    version: 1,
+    name: 'New Jam',
+    bpm: 100,
+    swing: 0,
+    key: { root: 0, scale: 'majPent' },
+    instruments: [drums, bass],
+    clips: [drumClip, bassClip],
+    sections: [],
+    arrangement: [],
+  };
+}
