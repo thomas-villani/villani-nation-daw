@@ -9,6 +9,10 @@ browser first. npm (not uv). Windows dev box.
 
 **Run:** `npm run dev` → http://localhost:5173 (click **Play** to start audio).
 **Build / typecheck:** `npm run build` · `npm run typecheck`.
+**Live:** auto-deployed to GitHub Pages on push to `main` —
+[thomas-villani.github.io/villani-nation-daw](https://thomas-villani.github.io/villani-nation-daw/).
+**Design narrative:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) (the "why" companion to
+this build log).
 
 ---
 
@@ -228,6 +232,23 @@ Files: `src/audio/{engine,scheduler,transportClock,drums,InstrumentVoice}.ts`,
 
 ### ⬜ Phase 8 — Optional Electron wrap
 Sample-folder browser, native save, packaged installer.
+
+---
+
+## Deployment & docs (post-phase-7)
+- **CI deploy to GitHub Pages.** `.github/workflows/deploy.yml` builds (`npm ci` +
+  `npm run build`) and publishes `dist/` via the official Pages actions
+  (`upload-pages-artifact` + `deploy-pages`) on every push to `main`. One-time repo
+  setup: Settings → Pages → Source = "GitHub Actions."
+- **Vite `base`.** `vite.config.ts` sets `base: '/villani-nation-daw/'` for
+  `command === 'build'` only (dev/preview stay at `/`), so production assets resolve
+  under the Pages sub-path. Verified the built `index.html` references
+  `/villani-nation-daw/assets/...`. (The drums are procedural and nothing fetches
+  from an absolute `/` path, so the sub-path is safe.)
+- **`ARCHITECTURE.md`.** A narrative, teaching-oriented writeup of the design (the
+  two-clocks problem, "no wrong notes" via scale-degree storage, the data/sound
+  split + one bridge, "read the audio / draw it," the engine reconciler, a worked
+  example) — the "why" companion to this phase log. Linked from the README.
 
 ---
 

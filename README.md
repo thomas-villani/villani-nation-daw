@@ -8,6 +8,10 @@ to building full tracks later.
 Built from [`fruityloops-for-kids-spec.md`](./fruityloops-for-kids-spec.md)
 (design codename "Loopa").
 
+**▶ Play it now:** [thomas-villani.github.io/villani-nation-daw](https://thomas-villani.github.io/villani-nation-daw/)
+(desktop Chrome/Edge — click **Play** to start the audio). Curious how it's built?
+[`ARCHITECTURE.md`](./ARCHITECTURE.md) walks through the design.
+
 ## What works today (phases 1–7)
 
 - **🥁 Drum grid** — tap a 16-step grid to build a beat with procedural
@@ -91,8 +95,20 @@ npm run typecheck  # type-check only
 `Project`; a singleton Tone.js engine is reconciled *from* the store by one bridge
 hook, so the UI never touches audio directly. Notes are stored as **scale
 degree + octave** and resolved to pitch only at playback — which is why changing
-key/scale re-pitches everything in-key for free. Architecture details live in
-[`implementation.md`](./implementation.md).
+key/scale re-pitches everything in-key for free.
+
+📖 **[`ARCHITECTURE.md`](./ARCHITECTURE.md)** is a narrative walkthrough of *why*
+it's built this way (the two-clocks problem, "no wrong notes," the one bridge,
+"read the audio / draw it"), written to be read while learning. The phase-by-phase
+build log is in [`implementation.md`](./implementation.md).
+
+## Deploying
+
+Pushing to `main` builds and publishes to **GitHub Pages** via
+[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml). One-time repo
+setup: **Settings → Pages → Build and deployment → Source: "GitHub Actions."** The
+Vite `base` is set to `/villani-nation-daw/` for production builds only, so local
+`npm run dev` still serves at the root.
 
 ### Project layout
 
