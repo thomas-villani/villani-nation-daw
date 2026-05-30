@@ -16,6 +16,10 @@ export interface EffectChain {
   nodes: BuiltEffect[];
   input: Tone.ToneAudioNode | null; // first node, or null if chain is empty
   output: Tone.ToneAudioNode | null; // last node, or null if chain is empty
+  // Resolves once every node's async setup is done (only Tone.Reverb has any: it
+  // renders its impulse response off-thread). The offline exporter awaits this so a
+  // reverb tail isn't missing from the render; live playback ignores it.
+  ready: Promise<unknown>;
   dispose(): void;
 }
 
@@ -61,10 +65,15 @@ export function buildEffectChain(configs: EffectConfig[]): EffectChain {
   for (let i = 0; i < nodes.length - 1; i++) {
     nodes[i].node.connect(nodes[i + 1].node);
   }
+  // Reverb nodes carry a `ready` promise (impulse-response generation).
+  const readies = nodes
+    .map((n) => (n.node as { ready?: Promise<unknown> }).ready)
+    .filter((r): r is Promise<unknown> => Boolean(r));
   return {
     nodes,
     input: nodes.length ? nodes[0].node : null,
     output: nodes.length ? nodes[nodes.length - 1].node : null,
+    ready: Promise.all(readies),
     dispose: () => nodes.forEach((n) => n.dispose()),
   };
 }

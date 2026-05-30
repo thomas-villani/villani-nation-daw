@@ -50,14 +50,20 @@ class AudioEngine {
   // --- instrument reconciliation (diff by id) ---
 
   syncInstruments(instruments: Instrument[]): void {
+    // Solo is a whole-board decision: if ANY channel is soloed, every non-soloed
+    // channel is silenced. A single voice can't know this, so we fold it in here.
+    const anySolo = instruments.some((i) => i.solo);
     const seen = new Set<string>();
     for (const inst of instruments) {
       seen.add(inst.id);
+      const silenced = inst.mute || (anySolo && !inst.solo);
       const existing = this.voices.get(inst.id);
       if (existing) {
-        existing.applyConfig(inst);
+        existing.applyConfig(inst, silenced);
       } else {
-        this.voices.set(inst.id, new InstrumentVoice(inst, this.master));
+        const voice = new InstrumentVoice(inst, this.master);
+        voice.applyConfig(inst, silenced);
+        this.voices.set(inst.id, voice);
       }
     }
     // Dispose voices whose instrument was removed.
@@ -137,6 +143,11 @@ class AudioEngine {
   getPosition() {
     const t = Tone.getTransport();
     return { ticks: t.ticks, seconds: t.seconds, position: t.position };
+  }
+
+  /** Post-fader level (0..1) for an instrument's mixer meter; 0 if no such voice. */
+  getMeterLevel(instrumentId: string): number {
+    return this.voices.get(instrumentId)?.getLevel() ?? 0;
   }
 }
 

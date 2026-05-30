@@ -21,7 +21,7 @@ browser first. npm (not uv). Windows dev box.
 | 3 | Project model + persistence (localStorage autosave, JSON import/export) | ✅ Done |
 | 4 | Multiple clips per instrument + chord stamp brush | ✅ Done |
 | 5 | Song view (sections, arrangement timeline, automation, templates) | ✅ Done |
-| 6 | Mix & export (mixer panel + meters, WAV/MP3 via `Tone.Offline`) | ⬜ Not started |
+| 6 | Mix & export (mixer panel + meters, WAV/MP3 via `Tone.Offline`) | ✅ Done |
 | 7 | Polish (generators / ✨ Surprise, coach overlay, audio visualizer) | ⬜ Not started |
 | 8 | Optional Electron wrap (sample-folder browser, native save, installer) | ⬜ Not started |
 
@@ -47,7 +47,7 @@ browser first. npm (not uv). Windows dev box.
 ### Seams already in place for later phases
 - `Project` is plain JSON → phase 3 persistence = `JSON.stringify`/hydrate.
 - `engine.scheduleArrangement()` → **implemented in phase 5** (walks the arrangement).
-- Master `Gain` node in the engine → phase 7 analyser tap.
+- Master `Gain` node in the engine → phase 7 analyser tap (still the obvious insert point).
 - Uniform `{ trigger, output, dispose }` voice/pad interface → reused by the
   phase-5 arrangement walker.
 - Pure scale math (`lib/scales.ts`) → reused by phase-4 chord stamp + phase-7
@@ -162,9 +162,35 @@ Files: `src/audio/{engine,scheduler,transportClock,drums,InstrumentVoice}.ts`,
   Silent assignment + automation chips all work, **playback in Song mode runs with
   zero console errors**, and Jam↔Song round-trips cleanly.
 
-### ⬜ Phase 6 — Mix & export
-Mixer panel (faders/mute/solo/pan + drum sub-mixer + `Tone.Meter` level meters);
-render to WAV (and optional MP3) via `Tone.Offline`.
+### ✅ Phase 6 — Mix & export
+- **Mixer "board"** (`src/components/mixer/`): a bottom drawer toggled by 🎚️ Mixer in
+  the transport bar (`ui.showMixer`). One `ChannelStrip` per instrument — vertical
+  **fader** + live **meter**, **Mute**/**Solo**, **Pan** — all writing to the
+  `Instrument`'s channel state, which is part of the `Project` JSON, so **saving the
+  song saves the mix** (spec §5.7). Drum channels expand to a **sub-mixer**: a
+  mini-fader + mute per pad (`DrumPad.gain`/`mute`).
+- **Solo is a whole-board decision**, so it can't live in one voice. `engine.syncInstruments`
+  computes `anySolo` and silences every non-soloed channel, folding it on top of each
+  channel's own mute via a `silenced` flag passed to `InstrumentVoice.applyConfig`.
+- **Level meters.** Each `InstrumentVoice` taps a `Tone.Meter` (normalRange) off its
+  post-fader signal — a pure read, zero audio effect. `MeterBar` runs one rAF per
+  strip, reading `engine.getMeterLevel(id)` and writing the fill height imperatively
+  (the same "read the audio, draw it" pattern as the playhead — no 60fps React churn).
+- **Offline render** (`src/audio/offline.ts`): `renderProject` wraps `Tone.Offline`,
+  which swaps the global context for an `OfflineContext`. We **rebuild a fresh graph**
+  from the `Project` inside the callback — reusing the very same `InstrumentVoice` +
+  `buildSong`/`buildJam` the live engine uses — so the render matches what the kid
+  hears (levels, mutes/solos, effects, automation). Song mode walks the arrangement
+  once (loop disabled, +2s tail so the last notes ring out); with no arrangement yet
+  it loops the active jam clips ×4. Reverb impulse responses are awaited (`whenReady`)
+  before rendering so tails aren't lost.
+- **Encoders.** `audioBufferToWav` (16-bit PCM, no deps, lossless) and
+  `audioBufferToMp3` (`@breezystack/lamejs`, dynamically imported so it's code-split
+  and failures stay contained — "send the song to grandpa" as a small file). Export
+  stops live playback first (the offline render briefly owns the audio context).
+- Verified in Chrome (headless): mixer renders both strips with faders/meters/pan +
+  the expanded drum sub-mixer; Play animates meters; **WAV (~1.8 MB) and MP3 (~225 KB)
+  both render and download** from the default jam, with **zero console errors**.
 
 ### ⬜ Phase 7 — Polish
 Generators (incl. ✨ Surprise song), coach overlay, audio visualizer
@@ -193,3 +219,6 @@ Sample-folder browser, native save, packaged installer.
 - Song mode plays the arrangement end-to-end; per-section clip swaps + automation
   (filter sweep, fade) ramp during their section and return; ✨ Auto-arrange yields a
   playable full song; Jam↔Song round-trips cleanly.
+- Mixer faders/mute/solo/pan + drum sub-mixer change the live mix and persist with
+  the project; channel meters move with the audio; WAV/MP3 export renders the song
+  (or jam loop) offline reproducing the mix exactly.

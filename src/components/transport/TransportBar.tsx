@@ -19,8 +19,10 @@ export function TransportBar() {
   const masterVolume = useProjectStore((s) => s.ui.masterVolume);
   const isPlaying = useProjectStore((s) => s.transport.isPlaying);
   const mode = useProjectStore((s) => s.ui.mode);
+  const showMixer = useProjectStore((s) => s.ui.showMixer);
 
   const setMode = useProjectStore((s) => s.setMode);
+  const toggleMixer = useProjectStore((s) => s.toggleMixer);
   const setBpm = useProjectStore((s) => s.setBpm);
   const setSwing = useProjectStore((s) => s.setSwing);
   const setKeyRoot = useProjectStore((s) => s.setKeyRoot);
@@ -128,6 +130,14 @@ export function TransportBar() {
           className="w-24 accent-hi"
         />
       </Control>
+
+      <button
+        onClick={toggleMixer}
+        className={`btn text-sm ${showMixer ? 'bg-hi text-ink border-yellow-600' : ''}`}
+        title="Open the mixer board + export"
+      >
+        🎚️ Mixer
+      </button>
 
       <ProjectMenu />
     </div>

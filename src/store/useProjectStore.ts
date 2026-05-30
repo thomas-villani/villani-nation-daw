@@ -40,6 +40,7 @@ interface UiState {
   mode: AppMode; // 'jam' = loop the active clips; 'song' = play the arrangement
   selectedInstrumentId: string | null;
   selectedSectionId: string | null; // the section open in the song inspector
+  showMixer: boolean; // the mixer "board" drawer is open
   // Which clip is "active" (shown in the editor AND looping) per instrument.
   // Sparse: a missing entry falls back to the instrument's first clip, so this
   // never needs eager bookkeeping when clips/instruments are added or loaded.
@@ -66,6 +67,7 @@ export interface ProjectStore {
   setScale(scale: ScaleName): void;
   setMasterVolume(v: number): void;
   setIsPlaying(b: boolean): void;
+  toggleMixer(): void;
 
   // instruments
   addInstrument(kind: InstrumentKind): string;
@@ -127,6 +129,7 @@ export const useProjectStore = create<ProjectStore>()(
           mode: 'jam',
           selectedInstrumentId: initial.instruments[0]?.id ?? null,
           selectedSectionId: initial.arrangement[0] ?? null,
+          showMixer: false,
           activeClipByInstrument: {},
           masterVolume: 0.9,
           lastSavedAt: null,
@@ -179,6 +182,10 @@ export const useProjectStore = create<ProjectStore>()(
         setIsPlaying: (b) =>
           set((s) => {
             s.transport.isPlaying = b;
+          }),
+        toggleMixer: () =>
+          set((s) => {
+            s.ui.showMixer = !s.ui.showMixer;
           }),
 
         addInstrument: (kind) => {

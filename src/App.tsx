@@ -12,12 +12,14 @@ import { ClipBar } from './components/clips/ClipBar';
 import { DrumGrid } from './components/drumgrid/DrumGrid';
 import { PianoRoll } from './components/pianoroll/PianoRoll';
 import { SongView } from './components/song/SongView';
+import { MixerPanel } from './components/mixer/MixerPanel';
 
 export default function App() {
   useEngineSync(); // store -> audio engine bridge (mounted once)
   useAutosave(); // project -> localStorage autosave (mounted once)
 
   const mode = useProjectStore((s) => s.ui.mode);
+  const showMixer = useProjectStore((s) => s.ui.showMixer);
   const selectedId = useProjectStore((s) => s.ui.selectedInstrumentId);
   const instrument = useProjectStore((s) => selectInstrumentById(s.project, selectedId));
   const activeMap = useProjectStore((s) => s.ui.activeClipByInstrument);
@@ -53,6 +55,8 @@ export default function App() {
 
         {instrument && <InstrumentPanel instrument={instrument} />}
       </div>
+
+      {showMixer && <MixerPanel />}
     </div>
   );
 }

@@ -41,6 +41,7 @@ export class InstrumentVoice {
   private panner: Tone.Panner;
   private autoGain: Tone.Gain; // section-automation gain (0..1), home = 1
   private volume: Tone.Volume;
+  private meter: Tone.Meter; // post-fader level tap for the mixer's channel meter
   private sourceOut: Tone.ToneAudioNode; // node that feeds the effect chain
 
   private synth?: SynthNode;
@@ -59,9 +60,13 @@ export class InstrumentVoice {
     this.panner = new Tone.Panner(inst.pan);
     this.autoGain = new Tone.Gain(1);
     this.volume = new Tone.Volume(Tone.gainToDb(inst.volume));
+    // normalRange meter reports 0..1 amplitude (RMS-ish) — easy to draw as a bar;
+    // it's a pure read tap off the post-fader signal, so it never affects audio.
+    this.meter = new Tone.Meter({ normalRange: true, smoothing: 0.85 });
     this.panner.connect(this.autoGain);
     this.autoGain.connect(this.volume);
     this.volume.connect(master);
+    this.volume.connect(this.meter);
 
     if (inst.kind === 'drumkit') {
       this.kit = this.buildKit(inst.drumkit?.pads ?? []);
@@ -108,9 +113,11 @@ export class InstrumentVoice {
   // --- public reconciliation surface ---
 
   /** Apply the full instrument config (channel + synth + effects), smart-skipping
-   *  an effect-chain rebuild when the effects config is unchanged (avoids clicks). */
-  applyConfig(inst: Instrument): void {
-    this.applyChannel(inst);
+   *  an effect-chain rebuild when the effects config is unchanged (avoids clicks).
+   *  `silenced` folds the mixer's solo logic in (any solo active + not soloed) on
+   *  top of the channel's own mute — computed by the engine, which sees all tracks. */
+  applyConfig(inst: Instrument, silenced?: boolean): void {
+    this.applyChannel(inst, silenced);
     if (this.kind !== 'drumkit' && inst.synth) {
       // Engine type change requires a fresh synth node.
       if (inst.synth.engine !== this.engine) this.rebuildSynth(inst.synth.engine);
@@ -120,10 +127,22 @@ export class InstrumentVoice {
     this.rewireEffects(inst);
   }
 
-  private applyChannel(inst: Instrument): void {
+  private applyChannel(inst: Instrument, silenced?: boolean): void {
     this.volume.volume.rampTo(Tone.gainToDb(Math.max(0.0001, inst.volume)), 0.02);
-    this.volume.mute = inst.mute;
+    this.volume.mute = silenced ?? inst.mute;
     this.panner.pan.rampTo(inst.pan, 0.02);
+  }
+
+  /** Resolves when this voice's effect chain (reverb IR) is ready — for offline render. */
+  whenReady(): Promise<unknown> {
+    return this.effectChain.ready;
+  }
+
+  /** Current post-fader level (0..1) for the mixer meter. */
+  getLevel(): number {
+    const v = this.meter.getValue();
+    const n = typeof v === 'number' ? v : (v[0] ?? 0);
+    return Number.isFinite(n) ? Math.max(0, n) : 0;
   }
 
   private applySynth(cfg: SynthConfig): void {
@@ -277,5 +296,6 @@ export class InstrumentVoice {
     this.panner.dispose();
     this.autoGain.dispose();
     this.volume.dispose();
+    this.meter.dispose();
   }
 }
