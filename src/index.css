@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: theme('colors.ink');
+  color: #f3eefe;
+  font-family: theme('fontFamily.display');
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+@layer components {
+  /* A chunky, tactile button used across the transport + panels. */
+  .btn {
+    @apply font-bold rounded-xl px-4 py-2 bg-panel2 border-2 border-edge shadow-chunky
+           active:translate-y-0.5 active:shadow-none transition;
+  }
+  .btn-primary {
+    @apply bg-hi text-ink border-yellow-600;
+  }
+  .panel {
+    @apply bg-panel rounded-2xl border-2 border-edge p-4;
+  }
+}
