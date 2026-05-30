@@ -22,7 +22,7 @@ browser first. npm (not uv). Windows dev box.
 | 4 | Multiple clips per instrument + chord stamp brush | ✅ Done |
 | 5 | Song view (sections, arrangement timeline, automation, templates) | ✅ Done |
 | 6 | Mix & export (mixer panel + meters, WAV/MP3 via `Tone.Offline`) | ✅ Done |
-| 7 | Polish (generators / ✨ Surprise, coach overlay, audio visualizer) | ⬜ Not started |
+| 7 | Polish (generators / ✨ Surprise, coach overlay, audio visualizer) | ✅ Done |
 | 8 | Optional Electron wrap (sample-folder browser, native save, installer) | ⬜ Not started |
 
 ---
@@ -47,7 +47,8 @@ browser first. npm (not uv). Windows dev box.
 ### Seams already in place for later phases
 - `Project` is plain JSON → phase 3 persistence = `JSON.stringify`/hydrate.
 - `engine.scheduleArrangement()` → **implemented in phase 5** (walks the arrangement).
-- Master `Gain` node in the engine → phase 7 analyser tap (still the obvious insert point).
+- Master `Gain` node in the engine → **used in phase 7**: two `Tone.Analyser` taps
+  (FFT + waveform) hang off it to feed the visualizer.
 - Uniform `{ trigger, output, dispose }` voice/pad interface → reused by the
   phase-5 arrangement walker.
 - Pure scale math (`lib/scales.ts`) → reused by phase-4 chord stamp + phase-7
@@ -192,9 +193,38 @@ Files: `src/audio/{engine,scheduler,transportClock,drums,InstrumentVoice}.ts`,
   the expanded drum sub-mixer; Play animates meters; **WAV (~1.8 MB) and MP3 (~225 KB)
   both render and download** from the default jam, with **zero console errors**.
 
-### ⬜ Phase 7 — Polish
-Generators (incl. ✨ Surprise song), coach overlay, audio visualizer
-(`Tone.Analyser` off the master bus).
+### ✅ Phase 7 — Polish
+- **✨ Surprise generators** (`src/lib/generators.ts`): pure functions on the *model*
+  (never raw audio), so everything they make is in-key for any key/scale (the "no
+  wrong notes" rule still holds). `surpriseBeat` (kick on beats + backbeat snare +
+  hat pattern + the odd clap), `surpriseBass` (root-led pulse), `surpriseMelody`
+  (sparse, singable, with rests), `surpriseChords` (a canned I–V–vi–IV stamped as
+  scale-step triads). They use `Math.random` for variety — each click is a
+  fresh-but-tasteful pattern. Two store actions write the result wholesale into the
+  active clip: `setClipSteps` / `setClipNotes` (so the existing engine bridge re-jams
+  through the debounced `loadJam`, no engine change). Buttons live where the context
+  is: **✨ Surprise beat** in the drum grid header; **🎵 Melody / 🎸 Bass / 🎹 Chords**
+  in the piano-roll header. **✨ Surprise song** is the phase-5 **Auto-arrange** in the
+  song view (assembles a full track from existing clips).
+- **Coach overlay** (`src/components/coach/CoachOverlay.tsx`): a **non-blocking** banner
+  under the transport bar that nudges through *beat → bass → melody → chords → arrange*.
+  It only **reads** the project (selects the stable `project` ref, derives in render —
+  no fresh-array selector) and **auto-advances** to the first incomplete step (steps
+  detected from the data: a drum clip has steps, melodic notes exist, ≥8 notes, a
+  chord = ≥2 notes sharing a start, arrangement ≥3 sections). Cheers when the whole
+  shape exists. Dismissable; reopen from 🧭 in the transport bar (`ui.showCoach`).
+- **Audio visualizer** (`src/components/visualizer/Visualizer.tsx`, spec §5.8 "for
+  Louie 🎇"): two `Tone.Analyser` taps (FFT 64 + waveform 256) hang off the engine
+  master bus — **pure reads, zero effect on the audio**, so they can't hurt timing.
+  A self-contained floating `<canvas>` card with one rAF reads the analysers each
+  frame and draws one of three kid-switchable styles: **📊 Bars** (spectrum, cyan→pink
+  gradient), **〰️ Scope** (oscilloscope — *see* a saw vs sine), **🫧 Blob** (a pulsing
+  radial glow driven by bass energy + overall loudness). Toggled by 🎇 in the
+  transport bar (`ui.showVisualizer`).
+- Verified in Chrome (headless): coach banner advances with the project, the
+  visualizer animates on Play and cycles bars/scope/blob, ✨ Surprise beat fills the
+  drum grid and ✨ Chords stamps an in-key triad — **zero console errors**;
+  typecheck + production build clean.
 
 ### ⬜ Phase 8 — Optional Electron wrap
 Sample-folder browser, native save, packaged installer.
@@ -222,3 +252,6 @@ Sample-folder browser, native save, packaged installer.
 - Mixer faders/mute/solo/pan + drum sub-mixer change the live mix and persist with
   the project; channel meters move with the audio; WAV/MP3 export renders the song
   (or jam loop) offline reproducing the mix exactly.
+- ✨ Surprise generators fill a clip with an in-key beat/bass/melody/chords; the coach
+  banner advances as the kid builds; the visualizer animates off the master bus and
+  switches bars/scope/blob — all with zero console errors.

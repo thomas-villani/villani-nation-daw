@@ -4,6 +4,7 @@ import { immer } from 'zustand/middleware/immer';
 import type {
   AutomationLane,
   Clip,
+  DrumStep,
   EffectType,
   Instrument,
   InstrumentKind,
@@ -41,6 +42,8 @@ interface UiState {
   selectedInstrumentId: string | null;
   selectedSectionId: string | null; // the section open in the song inspector
   showMixer: boolean; // the mixer "board" drawer is open
+  showCoach: boolean; // the non-blocking coach banner is visible (phase 7)
+  showVisualizer: boolean; // the audio visualizer card is open (phase 7)
   // Which clip is "active" (shown in the editor AND looping) per instrument.
   // Sparse: a missing entry falls back to the instrument's first clip, so this
   // never needs eager bookkeeping when clips/instruments are added or loaded.
@@ -68,6 +71,8 @@ export interface ProjectStore {
   setMasterVolume(v: number): void;
   setIsPlaying(b: boolean): void;
   toggleMixer(): void;
+  toggleCoach(): void;
+  toggleVisualizer(): void;
 
   // instruments
   addInstrument(kind: InstrumentKind): string;
@@ -101,6 +106,10 @@ export interface ProjectStore {
   removeClip(clipId: string): void;
   renameClip(clipId: string, name: string): void;
 
+  // generator results (phase 7 — ✨ Surprise; written wholesale into a clip)
+  setClipSteps(clipId: string, steps: DrumStep[]): void;
+  setClipNotes(clipId: string, notes: Note[]): void;
+
   // drum clip editing
   toggleStep(clipId: string, padIndex: number, step: number): void;
   setPadGain(instrumentId: string, padIndex: number, gain: number): void;
@@ -130,6 +139,8 @@ export const useProjectStore = create<ProjectStore>()(
           selectedInstrumentId: initial.instruments[0]?.id ?? null,
           selectedSectionId: initial.arrangement[0] ?? null,
           showMixer: false,
+          showCoach: true,
+          showVisualizer: false,
           activeClipByInstrument: {},
           masterVolume: 0.9,
           lastSavedAt: null,
@@ -186,6 +197,14 @@ export const useProjectStore = create<ProjectStore>()(
         toggleMixer: () =>
           set((s) => {
             s.ui.showMixer = !s.ui.showMixer;
+          }),
+        toggleCoach: () =>
+          set((s) => {
+            s.ui.showCoach = !s.ui.showCoach;
+          }),
+        toggleVisualizer: () =>
+          set((s) => {
+            s.ui.showVisualizer = !s.ui.showVisualizer;
           }),
 
         addInstrument: (kind) => {
@@ -416,6 +435,17 @@ export const useProjectStore = create<ProjectStore>()(
           set((s) => {
             const clip = findClip(s.project, clipId);
             if (clip) clip.name = name;
+          }),
+
+        setClipSteps: (clipId, steps) =>
+          set((s) => {
+            const clip = findClip(s.project, clipId);
+            if (clip) clip.steps = steps;
+          }),
+        setClipNotes: (clipId, notes) =>
+          set((s) => {
+            const clip = findClip(s.project, clipId);
+            if (clip) clip.notes = notes;
           }),
 
         toggleStep: (clipId, padIndex, step) =>

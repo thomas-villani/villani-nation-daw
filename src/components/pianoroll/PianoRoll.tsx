@@ -10,6 +10,7 @@ import {
 } from '../../lib/scales';
 import type { Clip, Instrument, Note, Project } from '../../model/types';
 import { engine } from '../../audio/engine';
+import { surpriseBass, surpriseChords, surpriseMelody } from '../../lib/generators';
 import { useProjectStore } from '../../store/useProjectStore';
 import { Playhead } from '../transport/Playhead';
 
@@ -54,6 +55,14 @@ export function PianoRoll({ instrument, clip, musicKey }: Props) {
   const addNote = useProjectStore((s) => s.addNote);
   const addNotes = useProjectStore((s) => s.addNotes);
   const removeNote = useProjectStore((s) => s.removeNote);
+  const setClipNotes = useProjectStore((s) => s.setClipNotes);
+
+  // ✨ Surprise generators — fill the active clip with an in-key pattern.
+  const surprises: { label: string; make: () => Note[] }[] = [
+    { label: '🎵 Melody', make: () => surpriseMelody(musicKey.scale, clip.lengthBars) },
+    { label: '🎸 Bass', make: () => surpriseBass(musicKey.scale, clip.lengthBars) },
+    { label: '🎹 Chords', make: () => surpriseChords(musicKey.scale, clip.lengthBars) },
+  ];
 
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -136,9 +145,24 @@ export function PianoRoll({ instrument, clip, musicKey }: Props) {
         <h2 className="font-bold text-lg" style={{ color: instrument.color }}>
           {instrument.name} — {clip.name}
         </h2>
-        <span className="text-xs text-white/40">
-          click to add · click a note to remove · drag to lengthen
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-white/40">
+            click to add · click a note to remove · drag to lengthen
+          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] uppercase tracking-wider text-white/40">✨ Surprise</span>
+            {surprises.map((sp) => (
+              <button
+                key={sp.label}
+                className="rounded-full border-2 border-edge hover:border-white/30 px-2.5 py-1 text-xs font-bold"
+                onClick={() => setClipNotes(clip.id, sp.make())}
+                title="fill this clip with an in-key pattern"
+              >
+                {sp.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Brush: single note, or stamp a diatonic chord (always in-key). */}

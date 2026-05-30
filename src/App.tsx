@@ -13,6 +13,8 @@ import { DrumGrid } from './components/drumgrid/DrumGrid';
 import { PianoRoll } from './components/pianoroll/PianoRoll';
 import { SongView } from './components/song/SongView';
 import { MixerPanel } from './components/mixer/MixerPanel';
+import { CoachOverlay } from './components/coach/CoachOverlay';
+import { Visualizer } from './components/visualizer/Visualizer';
 
 export default function App() {
   useEngineSync(); // store -> audio engine bridge (mounted once)
@@ -20,6 +22,8 @@ export default function App() {
 
   const mode = useProjectStore((s) => s.ui.mode);
   const showMixer = useProjectStore((s) => s.ui.showMixer);
+  const showCoach = useProjectStore((s) => s.ui.showCoach);
+  const showVisualizer = useProjectStore((s) => s.ui.showVisualizer);
   const selectedId = useProjectStore((s) => s.ui.selectedInstrumentId);
   const instrument = useProjectStore((s) => selectInstrumentById(s.project, selectedId));
   const activeMap = useProjectStore((s) => s.ui.activeClipByInstrument);
@@ -31,6 +35,7 @@ export default function App() {
   return (
     <div className="h-full flex flex-col">
       <TransportBar />
+      {showCoach && <CoachOverlay />}
       <div className="flex-1 flex gap-4 p-4 overflow-auto">
         <InstrumentRail />
 
@@ -57,6 +62,7 @@ export default function App() {
       </div>
 
       {showMixer && <MixerPanel />}
+      {showVisualizer && <Visualizer />}
     </div>
   );
 }

@@ -16,9 +16,17 @@ class AudioEngine {
   private song: SongSchedule | null = null;
   private started = false;
 
+  // Visualizer taps (spec §5.8) — pure reads off the master bus, zero effect on the
+  // audio, so they can't hurt timing. FFT feeds the spectrum bars / blob; the
+  // waveform feeds the oscilloscope. Created up front so the visualizer can read them
+  // the moment sound plays.
+  private fft = new Tone.Analyser('fft', 64);
+  private waveform = new Tone.Analyser('waveform', 256);
+
   constructor() {
-    // The master Gain is the obvious tap point for a phase-7 visualizer analyser.
     this.master.toDestination();
+    this.master.connect(this.fft);
+    this.master.connect(this.waveform);
   }
 
   /** Resume the AudioContext on the first user gesture (Play). */
@@ -148,6 +156,16 @@ class AudioEngine {
   /** Post-fader level (0..1) for an instrument's mixer meter; 0 if no such voice. */
   getMeterLevel(instrumentId: string): number {
     return this.voices.get(instrumentId)?.getLevel() ?? 0;
+  }
+
+  /** Master FFT magnitudes in dB (length 64) — for the spectrum bars / blob. */
+  getFFTValues(): Float32Array {
+    return this.fft.getValue() as Float32Array;
+  }
+
+  /** Master waveform samples (-1..1, length 256) — for the oscilloscope. */
+  getWaveformValues(): Float32Array {
+    return this.waveform.getValue() as Float32Array;
   }
 }
 

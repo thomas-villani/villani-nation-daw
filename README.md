@@ -8,7 +8,7 @@ to building full tracks later.
 Built from [`fruityloops-for-kids-spec.md`](./fruityloops-for-kids-spec.md)
 (design codename "Loopa").
 
-## What works today (phases 1–6)
+## What works today (phases 1–7)
 
 - **🥁 Drum grid** — tap a 16-step grid to build a beat with procedural
   kick / snare / hat / clap. Mute pads, or drag a `.wav` onto a row to swap in your
@@ -37,14 +37,26 @@ Built from [`fruityloops-for-kids-spec.md`](./fruityloops-for-kids-spec.md)
   solo, pan, live level meter), and drum channels expand to a per-pad sub-mixer.
   When it sounds right, **Save your song** as a **WAV** (lossless) or **MP3** (small) —
   rendered right in the browser, mix and all.
+- **✨ Surprise generators** — stuck? One click fills the clip with an in-key beat,
+  bassline, melody, or chord progression. **✨ Surprise beat** on the drum grid;
+  **🎵 Melody / 🎸 Bass / 🎹 Chords** on the piano roll; **✨ Auto-arrange** for a whole
+  song. Every result is in-key by construction.
+- **🧭 Coach** — an optional, never-blocking banner that walks you through *beat →
+  bass → melody → chords → arrange*, lighting up each step as you do it. Hide it
+  anytime.
+- **🎇 Visualizer** — a little screen that dances to the music: spectrum **bars**, an
+  **oscilloscope** (see what a sawtooth vs sine actually looks like), or a pulsing
+  bass-reactive **blob**. Pure eye candy tapped off the master — it never touches the
+  sound.
 - **✨ No wrong notes** — change the key or scale and your whole song re-pitches
   *in-key* instantly (happy ↔ moody with one control).
 - **💾 Never lose a jam** — every edit auto-saves to your browser and reopens next
   time. Name your jam, start a fresh one, or **Save File** / **Open** it as JSON to
   share or back up.
 
-See [`implementation.md`](./implementation.md) for the full progress tracker and
-what's coming (✨ Surprise generators, a coach overlay, an audio visualizer).
+See [`implementation.md`](./implementation.md) for the full progress tracker. The
+only thing left is an optional Electron desktop wrapper (sample-folder browser,
+native save, installer).
 
 ## Quick start
 
@@ -87,11 +99,12 @@ key/scale re-pitches everything in-key for free. Architecture details live in
 ```
 src/
   model/       # Project data types + factory defaults
-  lib/         # scale math (the "no wrong notes" core), time + constants
+  lib/         # scale math (the "no wrong notes" core), ✨ generators, time + constants
   audio/       # Tone.js engine, instrument voices, drums, scheduler, clock, offline render
   store/       # Zustand project store
   hooks/       # store → engine bridge, playhead subscription
-  components/  # transport bar, drum grid, piano roll, instrument panel, song view, mixer
+  components/  # transport bar, drum grid, piano roll, instrument panel, song view,
+               #   mixer, coach overlay, visualizer
 ```
 
 ---

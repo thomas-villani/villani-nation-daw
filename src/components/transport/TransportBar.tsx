@@ -20,9 +20,13 @@ export function TransportBar() {
   const isPlaying = useProjectStore((s) => s.transport.isPlaying);
   const mode = useProjectStore((s) => s.ui.mode);
   const showMixer = useProjectStore((s) => s.ui.showMixer);
+  const showCoach = useProjectStore((s) => s.ui.showCoach);
+  const showVisualizer = useProjectStore((s) => s.ui.showVisualizer);
 
   const setMode = useProjectStore((s) => s.setMode);
   const toggleMixer = useProjectStore((s) => s.toggleMixer);
+  const toggleCoach = useProjectStore((s) => s.toggleCoach);
+  const toggleVisualizer = useProjectStore((s) => s.toggleVisualizer);
   const setBpm = useProjectStore((s) => s.setBpm);
   const setSwing = useProjectStore((s) => s.setSwing);
   const setKeyRoot = useProjectStore((s) => s.setKeyRoot);
@@ -137,6 +141,22 @@ export function TransportBar() {
         title="Open the mixer board + export"
       >
         🎚️ Mixer
+      </button>
+
+      <button
+        onClick={toggleVisualizer}
+        className={`btn text-sm ${showVisualizer ? 'bg-hi text-ink border-yellow-600' : ''}`}
+        title="Show the audio visualizer"
+      >
+        🎇
+      </button>
+
+      <button
+        onClick={toggleCoach}
+        className={`btn text-sm ${showCoach ? 'bg-hi text-ink border-yellow-600' : ''}`}
+        title="Show the step-by-step coach"
+      >
+        🧭
       </button>
 
       <ProjectMenu />

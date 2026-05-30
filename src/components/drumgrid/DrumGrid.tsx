@@ -1,4 +1,5 @@
 import { STEPS_PER_BAR } from '../../lib/constants';
+import { surpriseBeat } from '../../lib/generators';
 import type { Clip, Instrument } from '../../model/types';
 import { useProjectStore } from '../../store/useProjectStore';
 import { Playhead } from '../transport/Playhead';
@@ -15,6 +16,7 @@ export function DrumGrid({ instrument, clip }: Props) {
   const pads = instrument.drumkit?.pads ?? [];
   const steps = clip.steps ?? [];
   const toggleStep = useProjectStore((s) => s.toggleStep);
+  const setClipSteps = useProjectStore((s) => s.setClipSteps);
 
   // Fast lookup of which (pad, step) cells are on.
   const active = new Set(steps.map((s) => `${s.padIndex}:${s.step}`));
@@ -24,11 +26,20 @@ export function DrumGrid({ instrument, clip }: Props) {
 
   return (
     <div className="panel inline-block">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 gap-4">
         <h2 className="font-bold text-lg" style={{ color: instrument.color }}>
           {instrument.name} — {clip.name}
         </h2>
-        <span className="text-xs text-white/40">drop a .wav onto a row to swap a sound</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-white/40">drop a .wav onto a row to swap a sound</span>
+          <button
+            className="btn btn-primary text-sm py-1.5"
+            onClick={() => setClipSteps(clip.id, surpriseBeat(pads.length))}
+            title="generate a fresh beat"
+          >
+            ✨ Surprise beat
+          </button>
+        </div>
       </div>
 
       <div className="flex">
