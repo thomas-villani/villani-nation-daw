@@ -17,6 +17,7 @@ import {
   makeSynthInstrument,
 } from '../model/defaults';
 import { TRACK_COLORS } from '../lib/constants';
+import { loadFromLocal } from '../lib/persistence';
 
 // THE source of truth for project DATA. Holds only serializable state (no Tone
 // objects, never imports the engine). The engine is reconciled from here by the
@@ -29,12 +30,19 @@ interface TransportState {
 interface UiState {
   selectedInstrumentId: string | null;
   masterVolume: number; // 0..1
+  lastSavedAt: number | null; // epoch ms of the last autosave (drives the "Saved ✓" hint)
 }
 
 export interface ProjectStore {
   project: Project;
   transport: TransportState;
   ui: UiState;
+
+  // project lifecycle (phase 3 — persistence)
+  newProject(): void;
+  replaceProject(project: Project): void;
+  renameProject(name: string): void;
+  markSaved(at: number): void;
 
   // global / transport
   setBpm(bpm: number): void;
@@ -71,11 +79,36 @@ const findClip = (p: Project, id: string) => p.clips.find((c) => c.id === id);
 export const useProjectStore = create<ProjectStore>()(
   subscribeWithSelector(
     immer((set) => {
-      const initial = makeDefaultProject();
+      // Hydrate from the last autosave if there is one, else the starter jam.
+      const initial = loadFromLocal() ?? makeDefaultProject();
       return {
         project: initial,
         transport: { isPlaying: false },
-        ui: { selectedInstrumentId: initial.instruments[0]?.id ?? null, masterVolume: 0.9 },
+        ui: {
+          selectedInstrumentId: initial.instruments[0]?.id ?? null,
+          masterVolume: 0.9,
+          lastSavedAt: null,
+        },
+
+        newProject: () =>
+          set((s) => {
+            const fresh = makeDefaultProject();
+            s.project = fresh;
+            s.ui.selectedInstrumentId = fresh.instruments[0]?.id ?? null;
+          }),
+        replaceProject: (project) =>
+          set((s) => {
+            s.project = project;
+            s.ui.selectedInstrumentId = project.instruments[0]?.id ?? null;
+          }),
+        renameProject: (name) =>
+          set((s) => {
+            s.project.name = name;
+          }),
+        markSaved: (at) =>
+          set((s) => {
+            s.ui.lastSavedAt = at;
+          }),
 
         setBpm: (bpm) =>
           set((s) => {

@@ -2,6 +2,7 @@ import { engine } from '../../audio/engine';
 import { useProjectStore } from '../../store/useProjectStore';
 import { ROOT_NAMES } from '../../lib/scales';
 import type { ScaleName } from '../../model/types';
+import { ProjectMenu } from './ProjectMenu';
 
 const SCALE_OPTIONS: { value: ScaleName; label: string }[] = [
   { value: 'majPent', label: 'Happy 5' },
@@ -110,6 +111,8 @@ export function TransportBar() {
           className="w-24 accent-hi"
         />
       </Control>
+
+      <ProjectMenu />
     </div>
   );
 }

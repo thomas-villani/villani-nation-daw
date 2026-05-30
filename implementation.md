@@ -18,7 +18,7 @@ browser first. npm (not uv). Windows dev box.
 |---|---|---|
 | 1 | Audio engine spike (loop + synced playhead) | ✅ Done |
 | 2 | Clip editor + instruments (drum grid, piano roll, synth panel, jam) | ✅ Done |
-| 3 | Project model + persistence (localStorage autosave, JSON import/export) | ⬜ Not started |
+| 3 | Project model + persistence (localStorage autosave, JSON import/export) | ✅ Done |
 | 4 | Multiple clips per instrument + chord stamp brush | ⬜ Not started |
 | 5 | Song view (sections, arrangement timeline, automation, templates) | ⬜ Not started |
 | 6 | Mix & export (mixer panel + meters, WAV/MP3 via `Tone.Offline`) | ⬜ Not started |
@@ -75,9 +75,27 @@ Files: `src/audio/{engine,scheduler,transportClock,drums,InstrumentVoice}.ts`,
   loop; transport bar (tempo/swing/key/scale/volume).
 - Verified end-to-end in Chrome incl. scale re-pitch (majPent → minor).
 
-### ⬜ Phase 3 — Project model + persistence (next)
-localStorage autosave + JSON import/export. Model is already serializable; this is
-a serialize/hydrate wrapper + a load/save UI. No model changes expected.
+### ✅ Phase 3 — Project model + persistence
+- **`src/lib/persistence.ts`**: the only module that touches `localStorage` and
+  file blobs. `serialize`/`deserialize` (with tolerant `validateProject` — rejects
+  wrong version / missing instruments-clips-key, fills phase-5 fields), `saveToLocal`
+  / `loadFromLocal`, `downloadProject` (→ `<name>.vnjam.json`), `readProjectFile`.
+- **Autosave** (`src/hooks/useAutosave.ts`): subscribes to `project` outside the
+  render cycle (same pattern as the engine bridge), debounced 800ms → localStorage,
+  then stamps `ui.lastSavedAt` to drive the "Auto-saved ✓" hint.
+- **Startup hydrate**: the store seeds from `loadFromLocal() ?? makeDefaultProject()`
+  so a kid's last jam reopens automatically.
+- **`ProjectMenu`** (in the transport bar): editable jam name, ✨ New (with confirm),
+  ⬇ Save File (download JSON), ⬆ Open (file picker → validate → `replaceProject`).
+  Loading stops the transport first so the playhead doesn't point at a stale loop.
+- **Store**: added `newProject` / `replaceProject` / `renameProject` / `markSaved`.
+  Whole-project swaps resync cleanly through the existing bridge (instruments diff by
+  id → dispose/create; clips/key → rebuild Parts) — no engine changes needed.
+- *Known limit:* sample pads loaded via drag-drop use ephemeral `blob:` object URLs
+  that don't survive a reload (procedural pads + all notes/steps round-trip fine).
+  Resolved later by a bundled sound set / embedding samples.
+- Verified in Chrome: rename → autosave to localStorage, JSON round-trips, zero
+  console errors.
 
 ### ⬜ Phase 4 — Multiple clips + chord stamp
 Clip selector/duplicate per instrument; chord-mode brush on the piano roll that

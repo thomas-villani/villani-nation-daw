@@ -1,4 +1,5 @@
 import { useEngineSync } from './hooks/useEngineSync';
+import { useAutosave } from './hooks/useAutosave';
 import {
   selectClipForInstrument,
   selectInstrumentById,
@@ -12,6 +13,7 @@ import { PianoRoll } from './components/pianoroll/PianoRoll';
 
 export default function App() {
   useEngineSync(); // store -> audio engine bridge (mounted once)
+  useAutosave(); // project -> localStorage autosave (mounted once)
 
   const selectedId = useProjectStore((s) => s.ui.selectedInstrumentId);
   const instrument = useProjectStore((s) => selectInstrumentById(s.project, selectedId));
